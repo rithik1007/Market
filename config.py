@@ -1,0 +1,36 @@
+"""
+Configuration for NSE Breakout Trading Dashboard
+"""
+
+# Analysis parameters
+LOOKBACK_DAYS = 90          # Days of historical data to fetch
+SHORT_MA = 20               # Short moving average period
+MEDIUM_MA = 50              # Medium moving average (DMA)
+LONG_MA = 200               # Long moving average (DMA)
+RSI_PERIOD = 14             # RSI calculation period
+VOLUME_AVG_PERIOD = 20      # Volume average period
+CONSOLIDATION_DAYS = 15     # Min days for consolidation detection
+ATR_PERIOD = 14             # ATR period for stop loss calculation
+
+# Filtering thresholds
+MIN_PRICE = 50              # Minimum stock price (avoid penny stocks)
+MAX_PRICE = 50000           # Maximum stock price
+MIN_AVG_VOLUME = 100000     # Minimum average daily volume (liquidity filter)
+MIN_DELIVERY_PCT = 40       # Minimum delivery percentage
+RSI_OVERSOLD = 30
+RSI_OVERBOUGHT = 75
+MAX_INTRADAY_MOVE = 8       # Max % move to avoid overextended stocks
+
+# Breakout detection
+BREAKOUT_VOLUME_MULTIPLIER = 1.5   # Volume must be 1.5x average for breakout
+CONSOLIDATION_RANGE_PCT = 8        # Max % range for consolidation detection
+MIN_RISK_REWARD = 2.0              # Minimum risk-reward ratio
+
+# Target percentages
+SWING_TARGET_1_PCT = 5
+SWING_TARGET_2_PCT = 10
+SWING_TARGET_3_PCT = 15
+
+# Dashboard
+TOP_PICKS = 10              # Number of top picks to show
+REFRESH_INTERVAL = 300      # Auto-refresh interval in seconds (5 min)

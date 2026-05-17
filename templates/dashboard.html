@@ -1,0 +1,691 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NSE Breakout Conviction Engine</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <header class="header">
+        <div class="header-left">
+            <div class="logo">
+                <span class="logo-icon">📊</span>
+                <div>
+                    <h1>NSE Breakout Scanner</h1>
+                    <p class="subtitle">Conviction Engine — Hard Data Only</p>
+                </div>
+            </div>
+        </div>
+        <div class="header-right">
+            <div class="status-badge" id="marketStatus">
+                <span class="dot"></span>
+                <span id="statusText">Ready</span>
+            </div>
+            <div class="timestamp" id="timestamp">--</div>
+            <button class="btn btn-primary" onclick="runScan()">
+                <span class="btn-icon">🔍</span> Run Scan
+            </button>
+            <button class="btn btn-secondary" onclick="refreshScan()">
+                <span class="btn-icon">🔄</span> Refresh
+            </button>
+            <div class="capital-input-wrap" id="capitalWrap" style="display:none;">
+                <span class="capital-label">₹</span>
+                <input type="number" id="capitalInput" class="capital-input" value="100000" min="1000" step="1000" placeholder="Capital">
+            </div>
+            <button class="btn btn-ai" id="aiBtn" onclick="runAI()" style="display:none;">
+                <span class="btn-icon">🤖</span> AI Analysis
+            </button>
+        </div>
+    </header>
+
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loader">
+            <div class="spinner"></div>
+            <p>Scanning 150+ NSE stocks...</p>
+            <p class="loader-sub">Computing breakout patterns, conviction scores, fake breakout detection</p>
+        </div>
+    </div>
+
+    <main class="main">
+        <!-- Stats -->
+        <div class="stats-bar" id="statsBar" style="display:none;">
+            <div class="stat-card">
+                <div class="stat-value" id="totalScanned">--</div>
+                <div class="stat-label">Scanned</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value text-green" id="breakoutsFound">--</div>
+                <div class="stat-label">Breakouts</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="niftyStatus">--</div>
+                <div class="stat-label">Nifty 50</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="bankNiftyStatus">--</div>
+                <div class="stat-label">Bank Nifty</div>
+            </div>
+            <div class="stat-card" id="oiCard" style="display:none;">
+                <div class="stat-value" id="oiPCR">--</div>
+                <div class="stat-label">Nifty PCR (OI)</div>
+            </div>
+            <div class="stat-card" id="oiSupportCard" style="display:none;">
+                <div class="stat-value text-green" id="oiSupport">--</div>
+                <div class="stat-label">OI Support</div>
+            </div>
+            <div class="stat-card" id="oiResistCard" style="display:none;">
+                <div class="stat-value text-red" id="oiResist">--</div>
+                <div class="stat-label">OI Resistance</div>
+            </div>
+        </div>
+
+        <!-- AI Analysis Panel -->
+        <div class="section ai-section" id="aiSection" style="display:none;">
+            <div class="ai-header">
+                <h2 class="section-title">🤖 AI Trade Advisor</h2>
+                <span class="ai-badge" id="aiBias">--</span>
+            </div>
+            <div class="ai-brief" id="aiBrief"></div>
+            <div class="ai-best" id="aiBest"></div>
+            <div class="ai-portfolio" id="aiPortfolio"></div>
+            <div class="ai-risk" id="aiRisk"></div>
+            <div class="ai-reentry" id="aiReentry"></div>
+            <h3 class="ai-plans-title" id="aiPlansTitle" style="display:none;">Trade Plans — Ranked by Priority</h3>
+            <div class="ai-plans" id="aiPlans"></div>
+            <h3 class="ai-plans-title" id="aiWatchTitle" style="display:none;">📋 Watchlist — Stocks to Monitor</h3>
+            <div class="ai-watchlist" id="aiWatchlist"></div>
+        </div>
+
+        <!-- Caution Alerts -->
+        <div class="section alerts-section" id="alertsSection" style="display:none;">
+            <h2 class="section-title">⚡ Caution Alerts</h2>
+            <div class="alerts-container" id="alertsContainer"></div>
+        </div>
+
+        <!-- Market Sentiment -->
+        <div class="section" id="sentimentSection" style="display:none;">
+            <h2 class="section-title">Index Sentiment (Technical)</h2>
+            <div class="table-wrapper">
+                <table class="data-table">
+                    <thead>
+                        <tr><th>Index</th><th>Close</th><th>Change %</th><th>Sentiment</th><th>&gt;20 DMA</th><th>&gt;50 DMA</th></tr>
+                    </thead>
+                    <tbody id="sentimentBody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Top Picks -->
+        <div class="section" id="topPicksSection" style="display:none;">
+            <h2 class="section-title">Top Breakout Picks — Ranked by Conviction</h2>
+            <div class="picks-grid" id="topPicksGrid"></div>
+        </div>
+
+        <!-- Safe & Aggressive -->
+        <div class="two-col" id="pickCategories" style="display:none;">
+            <div class="section">
+                <h2 class="section-title">Safest Breakout Trades</h2>
+                <div class="mini-picks" id="safePicks"></div>
+            </div>
+            <div class="section">
+                <h2 class="section-title">Aggressive Momentum Trades</h2>
+                <div class="mini-picks" id="aggressivePicks"></div>
+            </div>
+        </div>
+
+        <!-- Avoid -->
+        <div class="section" id="avoidSection" style="display:none;">
+            <h2 class="section-title">Stocks to Avoid</h2>
+            <div class="avoid-list" id="avoidList"></div>
+        </div>
+
+        <!-- Sector Rotation -->
+        <div class="section" id="sectorSection" style="display:none;">
+            <h2 class="section-title">Sector Rotation</h2>
+            <div class="table-wrapper">
+                <table class="data-table">
+                    <thead><tr><th>Sector</th><th>5D Avg Return</th><th>Stocks</th><th>Momentum</th></tr></thead>
+                    <tbody id="sectorBody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Full Table -->
+        <div class="section" id="fullTableSection" style="display:none;">
+            <h2 class="section-title">All Breakout Candidates</h2>
+            <div class="table-wrapper">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Ticker</th><th>Sector</th><th>CMP</th><th>Chg%</th>
+                            <th>Pattern</th><th>Entry</th><th>SL</th><th>T1</th><th>T2</th>
+                            <th>R:R</th><th>RSI</th><th>Vol</th><th>Score</th><th>Conviction</th>
+                        </tr>
+                    </thead>
+                    <tbody id="fullTableBody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Empty State -->
+        <div class="empty-state" id="emptyState">
+            <div class="empty-icon">📊</div>
+            <h2>NSE Breakout Conviction Engine</h2>
+            <p>Hard data. Technical proof. No noise.</p>
+            <ul class="feature-list">
+                <li>6 breakout patterns with volume confirmation</li>
+                <li>Conviction scoring: Technical + Institutional + Multi-TF + Relative Strength</li>
+                <li>Fake breakout detection with confidence %</li>
+                <li>Operator-driven move detection</li>
+                <li>OI-derived support/resistance from NSE option chain</li>
+                <li>Strict filters: no penny stocks, no low liquidity, R:R &ge; 2:1</li>
+            </ul>
+            <button class="btn btn-primary btn-lg" onclick="runScan()">
+                <span class="btn-icon">🔍</span> Run Scan
+            </button>
+        </div>
+    </main>
+
+    <!-- Detail Modal -->
+    <div class="modal-overlay" id="modalOverlay" onclick="closeModal()">
+        <div class="modal" onclick="event.stopPropagation()">
+            <button class="modal-close" onclick="closeModal()">&times;</button>
+            <div id="modalContent"></div>
+        </div>
+    </div>
+
+    <script>
+    let scanData = null;
+
+    async function runScan() {
+        showLoading(true);
+        try {
+            const r = await fetch('/api/scan');
+            const j = await r.json();
+            if (j.status === 'success') {
+                scanData = j.data;
+                render(scanData);
+                document.getElementById('aiBtn').style.display = '';
+                document.getElementById('capitalWrap').style.display = '';
+                runAI();  // auto-trigger AI trade suggestions
+            }
+            else alert('Scan failed: ' + (j.message || ''));
+        } catch(e) { alert('Error: ' + e.message); }
+        showLoading(false);
+    }
+
+    async function refreshScan() {
+        showLoading(true);
+        try {
+            const r = await fetch('/api/refresh', {method:'POST'});
+            const j = await r.json();
+            if (j.status === 'success') {
+                scanData = j.data;
+                render(scanData);
+                document.getElementById('aiBtn').style.display = '';
+                document.getElementById('capitalWrap').style.display = '';
+                runAI();  // auto-trigger AI trade suggestions
+            }
+            else alert('Refresh failed: ' + (j.message || ''));
+        } catch(e) { alert('Error: ' + e.message); }
+        showLoading(false);
+    }
+
+    function showLoading(s) { document.getElementById('loadingOverlay').style.display = s ? 'flex' : 'none'; }
+
+    function render(d) {
+        document.getElementById('emptyState').style.display = 'none';
+        document.getElementById('timestamp').textContent = d.timestamp;
+        document.getElementById('statusText').textContent = 'Scan Complete';
+        document.getElementById('marketStatus').classList.add('active');
+        document.getElementById('totalScanned').textContent = d.total_scanned;
+        document.getElementById('breakoutsFound').textContent = d.breakouts_found;
+
+        // Index
+        const nifty = (d.index_sentiment||[]).find(i => i.index === 'NIFTY 50');
+        const bn = (d.index_sentiment||[]).find(i => i.index === 'BANK NIFTY');
+        if(nifty) setIndex('niftyStatus', nifty);
+        if(bn) setIndex('bankNiftyStatus', bn);
+
+        // OI sentiment (hard data — real PCR from NSE option chain)
+        if(d.oi_sentiment) {
+            const oi = d.oi_sentiment;
+            show('oiCard'); show('oiSupportCard'); show('oiResistCard');
+            const oiEl = document.getElementById('oiPCR');
+            oiEl.textContent = `${oi.pcr} — ${oi.sentiment}`;
+            oiEl.className = 'stat-value ' + (oi.pcr > 1 ? 'text-green' : oi.pcr < 0.7 ? 'text-red' : '');
+            document.getElementById('oiSupport').textContent = '₹' + oi.support_strike;
+            document.getElementById('oiResist').textContent = '₹' + oi.resistance_strike;
+        }
+
+        renderAlerts(d.caution_alerts);
+        renderSentiment(d.index_sentiment||[]);
+        renderPicks(d.top_picks);
+        renderMini('safePicks', d.safe_picks);
+        renderMini('aggressivePicks', d.aggressive_picks);
+        renderAvoid(d.avoid_stocks);
+        renderSectors(d.sector_analysis);
+        renderFull(d.all_candidates);
+
+        ['statsBar','alertsSection','sentimentSection','topPicksSection',
+         'pickCategories','avoidSection','sectorSection','fullTableSection'].forEach(show);
+    }
+
+    function setIndex(id, idx) {
+        const el = document.getElementById(id);
+        el.textContent = `${idx.close} (${idx.change_pct>0?'+':''}${idx.change_pct}%)`;
+        el.className = 'stat-value ' + (idx.change_pct>=0?'text-green':'text-red');
+    }
+
+    function renderAlerts(alerts) {
+        const c = document.getElementById('alertsContainer');
+        c.innerHTML = (alerts||[]).map(a =>
+            `<div class="alert alert-${a.startsWith('✅')?'success':'warning'}">${a}</div>`
+        ).join('');
+    }
+
+    function renderSentiment(items) {
+        document.getElementById('sentimentBody').innerHTML = items.map(s => `
+            <tr>
+                <td><strong>${s.index}</strong></td>
+                <td>₹${s.close.toLocaleString()}</td>
+                <td class="${s.change_pct>=0?'text-green':'text-red'}">${s.change_pct>0?'+':''}${s.change_pct}%</td>
+                <td><span class="badge badge-${s.sentiment.includes('Bullish')?'green':s.sentiment.includes('Bearish')?'red':'yellow'}">${s.sentiment}</span></td>
+                <td>${b(s.above_20dma)}</td>
+                <td>${b(s.above_50dma)}</td>
+            </tr>
+        `).join('');
+    }
+
+    function renderPicks(picks) {
+        const g = document.getElementById('topPicksGrid');
+        if(!picks||!picks.length){ g.innerHTML='<p class="no-data">No breakout stocks passed all filters.</p>'; return; }
+        g.innerHTML = picks.map((p,i) => `
+            <div class="pick-card" onclick="showDetail(${i})">
+                <div class="pick-header">
+                    <div class="pick-rank">#${i+1}</div>
+                    <div>
+                        <div class="pick-ticker">${p.ticker}</div>
+                        <div class="pick-sector">${p.sector}</div>
+                    </div>
+                    <div class="pick-scores">
+                        <div class="conviction-circle cv-${cvColor(p.conviction_score||0)}">${p.conviction_score||0}</div>
+                        <div class="score-sub">conviction</div>
+                    </div>
+                </div>
+                <div class="pick-pattern">
+                    <span class="pattern-badge">${p.pattern_name}</span>
+                    ${p.volume_confirmed?'<span class="vol-badge">Vol ✓</span>':''}
+                    ${p.fake_breakout&&p.fake_breakout.is_fake?'<span class="fake-badge">Fake Risk</span>':''}
+                    ${p.institutional&&p.institutional.institutional?'<span class="inst-badge">Institutional</span>':''}
+                </div>
+                <div class="pick-body">
+                    <div class="pick-price">
+                        <span class="price">₹${p.close}</span>
+                        <span class="${p.change_pct>=0?'text-green':'text-red'}">${p.change_pct>0?'+':''}${p.change_pct}%</span>
+                    </div>
+                    <span class="badge badge-${trendCl(p.trend)}">${p.trend}</span>
+                </div>
+                <div class="conviction-bar-container">
+                    <div class="conviction-bar cv-bg-${cvColor(p.conviction_score||0)}" style="width:${p.conviction_score||0}%"></div>
+                    <span class="conviction-label">${p.conviction_verdict||''}</span>
+                </div>
+                <div class="pick-levels">
+                    <div class="level"><span class="level-label">Entry</span><span class="level-value">${p.trade_levels.entry_zone}</span></div>
+                    <div class="level"><span class="level-label">Stop Loss</span><span class="level-value text-red">${p.trade_levels.stop_loss}</span></div>
+                    <div class="level"><span class="level-label">Target 1</span><span class="level-value text-green">${p.trade_levels.target_1}</span></div>
+                    <div class="level"><span class="level-label">R:R</span><span class="level-value">${p.trade_levels.risk_reward}:1</span></div>
+                </div>
+                <div class="pick-meta">
+                    <span>RSI ${p.rsi}</span>
+                    <span>Vol ${p.volume_ratio}x</span>
+                    <span>${b(p.above_50dma)} 50D</span>
+                    <span>${b(p.above_200dma)} 200D</span>
+                    ${p.confirmation?`<span>Conf ${p.confirmation.strength}/10</span>`:''}
+                </div>
+            </div>
+        `).join('');
+    }
+
+    function renderMini(id, picks) {
+        const c = document.getElementById(id);
+        if(!picks||!picks.length){ c.innerHTML='<p class="no-data">None</p>'; return; }
+        c.innerHTML = picks.map(p => `
+            <div class="mini-pick">
+                <div class="mini-header">
+                    <strong>${p.ticker}</strong>
+                    <span class="conviction-mini cv-${cvColor(p.conviction_score||0)}">${p.conviction_score||0}%</span>
+                </div>
+                <div class="mini-info">₹${p.close} | <span class="pattern-badge small">${p.pattern_name}</span> | R:R ${p.trade_levels.risk_reward}:1</div>
+                <div class="mini-levels">Entry: ${p.trade_levels.entry_zone} | SL: ${p.trade_levels.stop_loss} | T1: ${p.trade_levels.target_1}</div>
+            </div>
+        `).join('');
+    }
+
+    function renderAvoid(stocks) {
+        const c = document.getElementById('avoidList');
+        if(!stocks||!stocks.length){ c.innerHTML='<p class="no-data">None flagged.</p>'; return; }
+        c.innerHTML = stocks.map(s => `
+            <div class="avoid-item"><span class="avoid-ticker">${s.ticker}</span><span class="avoid-reason">${s.reason}</span></div>
+        `).join('');
+    }
+
+    function renderSectors(sectors) {
+        document.getElementById('sectorBody').innerHTML = (sectors||[]).map(s => `
+            <tr>
+                <td><strong>${s.sector}</strong></td>
+                <td class="${s.avg_5d_return>=0?'text-green':'text-red'}">${s.avg_5d_return>0?'+':''}${s.avg_5d_return}%</td>
+                <td>${s.stocks_analyzed}</td>
+                <td><span class="badge badge-${s.momentum==='Strong'?'green':s.momentum==='Moderate'?'yellow':'red'}">${s.momentum}</span></td>
+            </tr>
+        `).join('');
+    }
+
+    function renderFull(cands) {
+        document.getElementById('fullTableBody').innerHTML = (cands||[]).map(c => `
+            <tr>
+                <td><strong>${c.ticker}</strong></td>
+                <td>${c.sector}</td>
+                <td>₹${c.close}</td>
+                <td class="${c.change_pct>=0?'text-green':'text-red'}">${c.change_pct>0?'+':''}${c.change_pct}%</td>
+                <td><span class="pattern-badge small">${c.pattern_name}</span></td>
+                <td>${c.trade_levels.entry_zone}</td>
+                <td class="text-red">${c.trade_levels.stop_loss}</td>
+                <td class="text-green">${c.trade_levels.target_1}</td>
+                <td class="text-green">${c.trade_levels.target_2}</td>
+                <td>${c.trade_levels.risk_reward}:1</td>
+                <td>${c.rsi}</td>
+                <td>${c.volume_ratio}x</td>
+                <td><span class="score-mini sc-${scColor(c.probability_score)}">${c.probability_score}</span></td>
+                <td><span class="conviction-mini cv-${cvColor(c.conviction_score||0)}">${c.conviction_score||0}%</span></td>
+            </tr>
+        `).join('');
+    }
+
+    // Detail modal
+    function showDetail(i) {
+        const p = scanData.top_picks[i];
+        document.getElementById('modalContent').innerHTML = `
+            <div class="detail-header">
+                <h2>${p.ticker} <span class="pick-sector">${p.sector}</span></h2>
+                <div class="detail-scores">
+                    <div class="conviction-circle cv-${cvColor(p.conviction_score||0)} big">${p.conviction_score||0}%</div>
+                </div>
+            </div>
+            <div class="conviction-verdict cv-verdict-${cvColor(p.conviction_score||0)}">${p.conviction_verdict||''}</div>
+
+            ${p.conviction_components?`
+            <div class="detail-section">
+                <h3>Conviction Breakdown</h3>
+                <div class="breakdown-bars">
+                    ${Object.entries(p.conviction_components).map(([k,v])=>`
+                        <div class="breakdown-row">
+                            <span class="breakdown-label">${fmtLabel(k)}</span>
+                            <div class="breakdown-bar-bg"><div class="breakdown-bar-fill" style="width:${v*3.33}%"></div></div>
+                            <span class="breakdown-value">${v}</span>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>`:''}
+
+            <div class="detail-grid">
+                <div class="detail-section">
+                    <h3>Price & Trend</h3>
+                    <table class="detail-table">
+                        <tr><td>CMP</td><td><strong>₹${p.close}</strong></td></tr>
+                        <tr><td>Change</td><td class="${p.change_pct>=0?'text-green':'text-red'}">${p.change_pct}%</td></tr>
+                        <tr><td>Trend</td><td><span class="badge badge-${trendCl(p.trend)}">${p.trend}</span></td></tr>
+                        <tr><td>50 DMA</td><td>₹${p.sma_50} ${b(p.above_50dma)}</td></tr>
+                        <tr><td>200 DMA</td><td>₹${p.sma_200} ${b(p.above_200dma)}</td></tr>
+                    </table>
+                </div>
+                <div class="detail-section">
+                    <h3>Trade Setup</h3>
+                    <table class="detail-table">
+                        <tr><td>Pattern</td><td><span class="pattern-badge">${p.pattern_name}</span></td></tr>
+                        <tr><td>Breakout</td><td><strong>${p.trade_levels.breakout_confirmation}</strong></td></tr>
+                        <tr><td>Entry</td><td>${p.trade_levels.entry_zone}</td></tr>
+                        <tr><td>Stop Loss</td><td class="text-red"><strong>${p.trade_levels.stop_loss}</strong></td></tr>
+                        <tr><td>T1 (+5%)</td><td class="text-green">${p.trade_levels.target_1}</td></tr>
+                        <tr><td>T2 (+10%)</td><td class="text-green">${p.trade_levels.target_2}</td></tr>
+                        <tr><td>T3 (+15%)</td><td class="text-green">${p.trade_levels.target_3}</td></tr>
+                        <tr><td>R:R</td><td><strong>${p.trade_levels.risk_reward}:1</strong></td></tr>
+                    </table>
+                </div>
+                <div class="detail-section">
+                    <h3>Technical Proof</h3>
+                    <table class="detail-table">
+                        <tr><td>RSI (14)</td><td>${p.rsi_analysis}</td></tr>
+                        <tr><td>Volume</td><td>${p.volume_analysis}</td></tr>
+                        <tr><td>MACD</td><td>${p.macd_bullish?'Bullish':'Bearish'}</td></tr>
+                        <tr><td>Vol Confirmed</td><td>${b(p.volume_confirmed)}</td></tr>
+                    </table>
+                </div>
+                <div class="detail-section">
+                    <h3>Support & Resistance</h3>
+                    <table class="detail-table">
+                        <tr><td>Resistance</td><td>${(p.support_resistance.resistance||[]).map(r=>'₹'+r).join(' → ')}</td></tr>
+                        <tr><td>Support</td><td>${(p.support_resistance.support||[]).map(s=>'₹'+s).join(' → ')}</td></tr>
+                    </table>
+                </div>
+            </div>
+
+            ${p.confirmation?`
+            <div class="detail-section">
+                <h3>Multi-TF Confirmation (${p.confirmation.strength}/10)</h3>
+                <div class="confirmation-checks">
+                    ${Object.entries(p.confirmation.checks||{}).filter(([k])=>k!=='total_strength').map(([k,v])=>
+                        `<span class="check-item ${v?'check-pass':'check-fail'}">${v?'✓':'✗'} ${fmtLabel(k)}</span>`
+                    ).join('')}
+                </div>
+            </div>`:''}
+
+            ${p.institutional?`
+            <div class="detail-section">
+                <h3>Institutional Activity (${p.institutional.score}/10)</h3>
+                <ul class="detail-list">${(p.institutional.signals||[]).map(s=>`<li>${s}</li>`).join('')}</ul>
+            </div>`:''}
+
+            <div class="detail-section">
+                <h3>Why This Stock</h3>
+                <ul class="detail-list why">${(p.why_better||[]).map(r=>`<li>${r}</li>`).join('')}</ul>
+            </div>
+
+            <div class="detail-section">
+                <h3>Risk Factors</h3>
+                <ul class="detail-list risk">${(p.risk_factors||[]).map(r=>`<li>${r}</li>`).join('')}</ul>
+            </div>
+
+            ${p.fake_breakout&&p.fake_breakout.is_fake?`
+            <div class="alert alert-warning">
+                <strong>Fake Breakout Risk (${p.fake_breakout.confidence}%)</strong><br>
+                ${(p.fake_breakout.reasons||[]).map(r=>'• '+r).join('<br>')}
+            </div>`:''}
+
+            ${p.operator_risk?`
+            <div class="alert alert-warning">
+                <strong>Operator Risk: ${p.operator_analysis.risk_level}</strong><br>
+                ${(p.operator_analysis.signals||[]).map(s=>'• '+s).join('<br>')}
+            </div>`:''}
+        `;
+        document.getElementById('modalOverlay').style.display = 'flex';
+    }
+
+    function closeModal() { document.getElementById('modalOverlay').style.display = 'none'; }
+
+    // Helpers
+    function b(v) { return v ? '✓' : '✗'; }
+    function show(id) { document.getElementById(id).style.display = ''; }
+    function trendCl(t) { return t&&(t.includes('Up')||t.includes('Bullish'))?'green':t&&t.includes('Down')?'red':'yellow'; }
+    function scColor(s) { return s>=7?'green':s>=5?'yellow':'red'; }
+    function cvColor(c) { return c>=70?'green':c>=50?'yellow':'red'; }
+    function fmtLabel(k) { return k.replace(/_/g,' ').replace(/\b\w/g,l=>l.toUpperCase()); }
+
+    // AI Analysis
+    async function runAI() {
+        const btn = document.getElementById('aiBtn');
+        const sec = document.getElementById('aiSection');
+        btn.disabled = true; btn.innerHTML = '<span class="btn-icon">⏳</span> Analyzing...';
+        // Show loading state in AI section immediately
+        sec.style.display = '';
+        document.getElementById('aiBrief').innerHTML = '<p class="ai-loading">🤖 AI is analyzing your scan results — generating trade plans...</p>';
+        document.getElementById('aiBest').innerHTML = '';
+        document.getElementById('aiPortfolio').innerHTML = '';
+        document.getElementById('aiRisk').innerHTML = '';
+        document.getElementById('aiPlans').innerHTML = '';
+        document.getElementById('aiPlansTitle').style.display = 'none';
+        document.getElementById('aiReentry').innerHTML = '';
+        document.getElementById('aiWatchlist').innerHTML = '';
+        document.getElementById('aiWatchTitle').style.display = 'none';
+        document.getElementById('aiBias').textContent = '...';
+        document.getElementById('aiBias').className = 'ai-badge ai-bias-neutral';
+        // Scroll to top so user sees AI section
+        window.scrollTo({top: 0, behavior: 'smooth'});
+        try {
+            const capital = document.getElementById('capitalInput').value || '100000';
+            const r = await fetch('/api/ai-analysis?capital=' + encodeURIComponent(capital));
+            const j = await r.json();
+            if (j.status === 'success') renderAI(j.data);
+            else document.getElementById('aiBrief').innerHTML = '<p class="ai-brief-text">AI analysis unavailable. Use the data below to make your decisions.</p>';
+        } catch(e) { alert('AI error: ' + e.message); }
+        btn.disabled = false; btn.innerHTML = '<span class="btn-icon">🤖</span> AI Analysis';
+    }
+
+    function renderAI(ai) {
+        const sec = document.getElementById('aiSection');
+        sec.style.display = '';
+
+        // Bias badge
+        const bias = ai.overall_bias || 'NEUTRAL';
+        const biasEl = document.getElementById('aiBias');
+        biasEl.textContent = bias;
+        biasEl.className = 'ai-badge ai-bias-' + bias.toLowerCase();
+
+        // Market brief
+        document.getElementById('aiBrief').innerHTML =
+            `<p class="ai-brief-text">${ai.market_brief || ''}</p>`;
+
+        // Best pick callout
+        if (ai.best_pick_summary) {
+            document.getElementById('aiBest').innerHTML =
+                `<div class="ai-best-box">💡 <strong>Top Pick:</strong> ${ai.best_pick_summary}</div>`;
+        }
+
+        // Portfolio plan
+        const pp = ai.portfolio_plan;
+        if (pp) {
+            document.getElementById('aiPortfolio').innerHTML = `
+                <div class="ai-portfolio-grid">
+                    <div class="ai-pf-card">
+                        <div class="ai-pf-value">${pp.stocks_to_trade}</div>
+                        <div class="ai-pf-label">Stocks to Trade</div>
+                    </div>
+                    <div class="ai-pf-card">
+                        <div class="ai-pf-value text-green">${pp.capital_to_deploy}</div>
+                        <div class="ai-pf-label">Deploy (${pp.deploy_pct}%)</div>
+                    </div>
+                    <div class="ai-pf-card">
+                        <div class="ai-pf-value text-yellow">${pp.capital_in_cash}</div>
+                        <div class="ai-pf-label">Keep in Cash</div>
+                    </div>
+                    <div class="ai-pf-card ai-pf-note">
+                        <div class="ai-pf-label">${pp.strategy_note}</div>
+                    </div>
+                </div>`;
+        }
+
+        // Risk warning
+        const risk = ai.risk_warning || '';
+        document.getElementById('aiRisk').innerHTML = risk
+            ? `<div class="alert alert-warning">${risk}</div>` : '';
+
+        // Trade plans
+        const plans = ai.trade_plans || [];
+        if (plans.length) {
+            document.getElementById('aiPlansTitle').style.display = '';
+            document.getElementById('aiPlans').innerHTML = plans.map(p => `
+                <div class="trade-plan tp-${(p.action||'').toLowerCase()}">
+                    <div class="tp-header">
+                        <div class="tp-rank">#${p.rank}</div>
+                        <div class="tp-ticker">${p.ticker}</div>
+                        <span class="ai-action ai-action-${(p.action||'').toLowerCase()}">${p.action}</span>
+                        <span class="tp-conviction tp-cv-${(p.conviction||'').toLowerCase()}">${p.conviction}</span>
+                        <span class="tp-hold">${p.holding_period || ''}</span>
+                    </div>
+                    <p class="tp-reasoning">${p.reasoning}</p>
+                    ${p.action === 'BUY' ? `
+                    <div class="tp-levels">
+                        <div class="tp-level">
+                            <span class="tp-lbl">Invest</span>
+                            <span class="tp-val tp-invest">${p.capital_to_invest} (${p.capital_pct}%)</span>
+                        </div>
+                        <div class="tp-level">
+                            <span class="tp-lbl">Qty</span>
+                            <span class="tp-val">${p.qty} shares</span>
+                        </div>
+                        <div class="tp-level">
+                            <span class="tp-lbl">Entry</span>
+                            <span class="tp-val">${p.entry_price}</span>
+                        </div>
+                        <div class="tp-level">
+                            <span class="tp-lbl">Stop Loss</span>
+                            <span class="tp-val text-red">${p.stop_loss}</span>
+                        </div>
+                        <div class="tp-level">
+                            <span class="tp-lbl">Target 1</span>
+                            <span class="tp-val text-green">${p.target_1}</span>
+                        </div>
+                        <div class="tp-level">
+                            <span class="tp-lbl">Target 2</span>
+                            <span class="tp-val text-green">${p.target_2}</span>
+                        </div>
+                    </div>
+                    <div class="tp-pnl">
+                        <div class="tp-pnl-item tp-profit">
+                            <span>If T1 hits →</span>
+                            <strong class="text-green">${p.expected_profit_t1}</strong>
+                        </div>
+                        <div class="tp-pnl-item tp-profit">
+                            <span>If T2 hits →</span>
+                            <strong class="text-green">${p.expected_profit_t2}</strong>
+                        </div>
+                        <div class="tp-pnl-item tp-loss">
+                            <span>If SL hits →</span>
+                            <strong class="text-red">-${p.max_loss}</strong>
+                        </div>
+                    </div>
+                    <div class="tp-rr-note">${p.risk_reward_note || ''}</div>
+                    ` : ''}
+                </div>
+            `).join('');
+        }
+
+        // Watchlist (no-breakout scenario)
+        const watchlist = ai.watchlist || [];
+        if (watchlist.length) {
+            document.getElementById('aiWatchTitle').style.display = '';
+            document.getElementById('aiWatchlist').innerHTML = watchlist.map(w => `
+                <div class="watch-card">
+                    <div class="watch-header">
+                        <strong>${w.ticker}</strong>
+                        <span class="watch-sector">${w.sector || ''}</span>
+                        ${w.trigger_level ? `<span class="watch-trigger">Trigger: ${w.trigger_level}</span>` : ''}
+                    </div>
+                    <p class="watch-why">${w.why_watch}</p>
+                </div>
+            `).join('');
+        }
+
+        // Re-entry conditions
+        if (ai.re_entry_conditions) {
+            document.getElementById('aiReentry').innerHTML =
+                `<div class="ai-reentry-box">🔄 <strong>When to Re-enter:</strong> ${ai.re_entry_conditions}</div>`;
+        }
+    }
+
+    document.addEventListener('keydown', e => { if(e.key==='Escape') closeModal(); });
+    </script>
+</body>
+</html>
