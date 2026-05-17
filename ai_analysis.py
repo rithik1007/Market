@@ -70,33 +70,33 @@ def _call_llm(system_prompt: str, user_prompt: str, max_tokens: int = 1500) -> O
 # Public API
 # ──────────────────────────────────────────────
 
-SYSTEM_PROMPT = """You are an expert NSE (National Stock Exchange of India) breakout trader, portfolio strategist, and technical analyst.
+SYSTEM_PROMPT = """You are an expert NSE (National Stock Exchange of India) trader, portfolio strategist, and technical analyst.
 You receive ONLY hard, verified data — price, volume, RSI, MACD, MAs, conviction scores, pattern detection, and trade levels.
+You also receive the full universe of scanned stocks filtered to the trader's budget.
 
-Your job is to produce ACTIONABLE TRADE PLANS — tell the trader EXACTLY what to do:
-1. For each stock: BUY / WAIT / AVOID with a clear reason.
-2. For BUY picks: specify how much capital to allocate (as % of a ₹1,00,000 portfolio), the exact entry price, stop loss, and targets.
-3. Calculate the expected profit in ₹ if Target 1 hits, and the max loss in ₹ if stop loss hits.
-4. Suggest a holding period (Intraday / 1-3 days / 1-2 weeks / Swing 2-4 weeks).
-5. Rank stocks by which one you'd put money on FIRST.
-6. Give an overall portfolio plan: how many stocks to trade today, total capital to deploy vs keep in cash.
-7. If NO breakouts are found, still give value: analyze why the market is weak, which sectors to watch, when to re-enter, and what price levels to watch on Nifty/BankNifty. Suggest stocks from the sector data that could break out next.
+Your job is to produce ACTIONABLE TRADE RECOMMENDATIONS:
+1. From the affordable_stocks list, identify the BEST stocks to buy right now or watch.
+2. For BUY picks: specify exact entry price, stop loss, targets, qty, and ₹ amounts.
+3. For WATCH picks: specify the trigger price and condition to enter.
+4. Rank stocks by which one you'd put money on FIRST.
+5. Give an overall portfolio plan: how many stocks to trade, capital to deploy vs keep in cash.
+6. If market is bearish, recommend the best defensive picks or cheapest stocks with upside potential.
 
 Rules:
 - Never fabricate data. Only use numbers from the scan.
-- Be brutally honest. If a breakout looks weak, say so.
-- If market is bearish with 0 breakouts, recommend staying in cash and explain what conditions to wait for.
-- Position size based on conviction: High conviction = 15-25% of capital, Medium = 8-12%, Low = skip.
-- Flag contradictions (breakout + weak volume = suspicious, high conviction + fake breakout risk = reduce size).
+- Be brutally honest. If a stock looks weak, say so.
+- The trader can ONLY buy stocks priced within their budget. Never recommend a stock they can't afford (price > budget).
+- For small budgets (under ₹5,000): focus on 1-2 stocks max, allocate 50-80% to the best pick. Don't split tiny capital across many positions.
+- qty = how many shares the trader can buy with allocated capital at entry price. Must be at least 1. If can't afford 1 share, skip that stock.
 - All amounts in Indian Rupees (₹).
+- IMPORTANT: Always recommend at least 1-3 stocks from the affordable list, even in bearish markets.
 Output valid JSON only — no markdown, no code fences."""
 
 
 def generate_ai_analysis(scan_results: dict, capital: int = 100000) -> Optional[dict]:
     """
     Generate AI-powered analysis with concrete trade plans.
-    Returns market brief + per-stock trade plans with amounts.
-    Handles zero-breakout scenarios with watchlist advice.
+    Filters the full stock universe by the user's budget.
     """
     # Build compact data payload for LLM (minimize tokens)
     top_picks_data = []
@@ -129,16 +129,28 @@ def generate_ai_analysis(scan_results: dict, capital: int = 100000) -> Optional[
             "risk_factors": p.get("risk_factors", []),
         })
 
+    # Filter full stock universe by budget — only stocks user can afford
+    universe = scan_results.get("stock_universe", [])
+    affordable = sorted(
+        [s for s in universe if s["close"] <= capital],
+        key=lambda s: (-s["rsi"] if s["rsi"] < 70 else 0, -s["volume_ratio"]),
+    )
+    # Send top 25 affordable stocks (sorted by technical strength) to keep tokens low
+    affordable_for_ai = affordable[:25]
+
     index_data = scan_results.get("index_sentiment", [])
     oi_data = scan_results.get("oi_sentiment")
     sector_data = scan_results.get("sector_analysis", [])
 
     payload = {
+        "capital": f"₹{capital:,}",
         "total_scanned": scan_results["total_scanned"],
         "breakouts_found": scan_results["breakouts_found"],
+        "affordable_stocks_count": len(affordable),
         "index_sentiment": index_data,
         "oi_sentiment": oi_data,
         "top_picks": top_picks_data,
+        "affordable_stocks": affordable_for_ai,
         "sector_analysis": sector_data[:8],
         "avoid_count": len(scan_results.get("avoid_stocks", [])),
         "caution_alerts": scan_results.get("caution_alerts", []),
@@ -162,18 +174,24 @@ def generate_ai_analysis(scan_results: dict, capital: int = 100000) -> Optional[
 def _build_trade_prompt(payload: dict, capital: int = 100000) -> str:
     """Prompt when breakouts ARE found."""
     cap_fmt = f"₹{capital:,}"
-    return f"""Analyze this NSE breakout scan and return a JSON trade plan. The trader's available capital is {cap_fmt}. Only recommend stocks whose per-share price fits within this budget (trader must be able to buy at least 1 share). Calculate qty, amounts, and percentages relative to {cap_fmt}.
+    return f"""Analyze this NSE breakout scan. The trader has {cap_fmt} to invest.
 
-Return this exact JSON structure:
+You have two data sources:
+1. "top_picks" — stocks with confirmed breakout patterns (strongest signals)
+2. "affordable_stocks" — ALL scanned stocks priced ≤ {cap_fmt}/share with their technicals (RSI, volume, trend, MAs)
+
+ONLY recommend stocks the trader can afford (price ≤ {cap_fmt}). Calculate qty = floor({cap_fmt} * allocation% / price).
+
+Return this exact JSON:
 {{
-  "market_brief": "2-4 sentence assessment of today's market",
+  "market_brief": "2-4 sentence market assessment",
   "overall_bias": "BULLISH" or "BEARISH" or "NEUTRAL",
   "portfolio_plan": {{
     "stocks_to_trade": 2,
-    "capital_to_deploy": "₹60,000",
-    "capital_in_cash": "₹40,000",
+    "capital_to_deploy": "₹xx,xxx",
+    "capital_in_cash": "₹xx,xxx",
     "deploy_pct": 60,
-    "strategy_note": "1 sentence on overall approach today"
+    "strategy_note": "1 sentence approach"
   }},
   "trade_plans": [
     {{
@@ -181,23 +199,23 @@ Return this exact JSON structure:
       "ticker": "STOCK",
       "action": "BUY" or "WAIT" or "AVOID",
       "conviction": "HIGH" or "MEDIUM" or "LOW",
-      "reasoning": "2-3 sentences why — grounded in data only",
+      "reasoning": "2-3 sentences grounded in data",
       "entry_price": "₹xxx",
       "stop_loss": "₹xxx",
       "target_1": "₹xxx",
       "target_2": "₹xxx",
-      "holding_period": "Intraday" or "1-3 Days" or "1-2 Weeks" or "Swing 2-4 Weeks",
+      "holding_period": "Intraday / 1-3 Days / 1-2 Weeks / Swing",
       "capital_to_invest": "₹xx,xxx",
       "capital_pct": 20,
       "qty": 10,
       "expected_profit_t1": "₹x,xxx",
       "expected_profit_t2": "₹x,xxx",
       "max_loss": "₹x,xxx",
-      "risk_reward_note": "If SL hits you lose ₹X, if T1 hits you gain ₹Y"
+      "risk_reward_note": "If SL hits lose ₹X, if T1 hits gain ₹Y"
     }}
   ],
-  "risk_warning": "1 sentence key risk for today",
-  "best_pick_summary": "In 1 sentence, which stock would you bet on and why"
+  "risk_warning": "1 sentence key risk",
+  "best_pick_summary": "Which stock would you bet on first and why"
 }}
 
 Scan Data:
@@ -207,33 +225,42 @@ Scan Data:
 def _build_no_breakout_prompt(payload: dict, capital: int = 100000) -> str:
     """Prompt when NO breakouts found — bearish/flat market."""
     cap_fmt = f"₹{capital:,}"
-    return f"""The NSE breakout scan found 0 breakouts today. All sectors are weak. The market is not giving buy signals right now.
-The trader's available capital is {cap_fmt}. Only suggest watchlist stocks whose per-share price the trader can afford (at least 1 share within budget).
+    return f"""NSE scan found 0 breakouts today. But the trader has {cap_fmt} and wants to know WHAT to buy.
 
-But a trader still needs guidance. Analyze the data and return a JSON object with:
+You have "affordable_stocks" — ALL scanned stocks priced ≤ {cap_fmt}/share with their RSI, volume ratio, trend, and MA positions. Use this data to find the BEST stocks within budget.
 
+Even in a bearish market, identify 3-5 stocks from affordable_stocks that:
+- Have RSI between 30-50 (oversold bounce candidates)
+- Or have strong volume ratio (>1.0) showing accumulation
+- Or are above 50DMA/200DMA (relative strength)
+- Or are in a strong sector (Pharma, FMCG, Telecom)
+
+Return this JSON:
 {{
-  "market_brief": "3-5 sentences explaining WHY no breakouts were found — what's happening in the market. Be specific about index levels and sector weakness.",
+  "market_brief": "3-5 sentences on WHY no breakouts — be specific about index levels.",
   "overall_bias": "BEARISH" or "NEUTRAL",
   "portfolio_plan": {{
     "stocks_to_trade": 0,
     "capital_to_deploy": "₹0",
     "capital_in_cash": "{cap_fmt}",
     "deploy_pct": 0,
-    "strategy_note": "Clear instruction — sit in cash, wait for X condition"
+    "strategy_note": "Clear instruction on what to do with {cap_fmt}"
   }},
   "trade_plans": [],
   "watchlist": [
     {{
-      "ticker": "STOCK from sector data",
-      "sector": "sector name",
-      "why_watch": "1-2 sentences — what signal to wait for before entering",
-      "trigger_level": "₹xxx — price level that would signal a buy"
+      "ticker": "STOCK from affordable_stocks",
+      "sector": "sector",
+      "current_price": "₹xxx",
+      "why_watch": "1-2 sentences — reference actual RSI, volume, trend data from the scan",
+      "trigger_level": "₹xxx — exact price to enter",
+      "qty_at_trigger": N,
+      "investment_amount": "₹xxx"
     }}
   ],
-  "re_entry_conditions": "2-3 sentences — what market conditions must change before deploying capital. Be specific about Nifty levels, sector rotation signs, volume patterns.",
-  "risk_warning": "1 sentence — key risk if someone tries to buy in this market",
-  "best_pick_summary": "Even in a weak market, name 1 stock from the strongest sector to watch and the exact condition to enter"
+  "re_entry_conditions": "2-3 sentences — specific conditions to deploy capital",
+  "risk_warning": "1 sentence risk",
+  "best_pick_summary": "Name the #1 affordable stock to watch and exact entry condition"
 }}
 
 Scan Data:

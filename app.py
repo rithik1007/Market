@@ -83,7 +83,7 @@ def ai_analysis():
     try:
         capital = request.args.get('capital', '100000')
         try:
-            capital = max(1000, int(float(capital)))
+            capital = max(500, int(float(capital)))
         except (ValueError, TypeError):
             capital = 100000
         analysis = generate_ai_analysis(_last_scan, capital=capital)

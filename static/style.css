@@ -669,6 +669,16 @@ body {
     padding: 2px 8px; background: rgba(99,102,241,0.1); border-radius: 4px;
 }
 .watch-why { font-size: 13px; color: var(--text-secondary); line-height: 1.6; }
+.watch-price {
+    font-size: 12px; font-weight: 600; color: var(--text-primary);
+    font-family: 'JetBrains Mono', monospace;
+}
+.watch-invest {
+    margin-top: 6px; font-size: 12px; font-weight: 600;
+    color: var(--green); font-family: 'JetBrains Mono', monospace;
+    padding: 4px 8px; background: rgba(16,185,129,0.08);
+    border-radius: 4px; display: inline-block;
+}
 
 /* Re-entry box */
 .ai-reentry-box {

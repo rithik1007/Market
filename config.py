@@ -3,7 +3,7 @@ Configuration for NSE Breakout Trading Dashboard
 """
 
 # Analysis parameters
-LOOKBACK_DAYS = 90          # Days of historical data to fetch
+LOOKBACK_DAYS = 365          # Days of historical data to fetch
 SHORT_MA = 20               # Short moving average period
 MEDIUM_MA = 50              # Medium moving average (DMA)
 LONG_MA = 200               # Long moving average (DMA)

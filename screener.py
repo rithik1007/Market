@@ -49,6 +49,7 @@ def screen_stocks(tickers=None):
 
     candidates = []
     rejected = []
+    stock_universe = []  # All scanned stocks with basic metrics for AI
 
     for ticker, df in stock_data.items():
         clean_ticker = ticker.replace(".NS", "")
@@ -61,6 +62,20 @@ def screen_stocks(tickers=None):
 
         latest = df.iloc[-1]
         close = latest["Close"]
+
+        # Collect basic metrics for AI universe (all stocks, pre-filter)
+        stock_universe.append({
+            "ticker": clean_ticker,
+            "sector": get_stock_sector(ticker),
+            "close": round(close, 2),
+            "change_pct": round(latest.get("Pct_Change", 0), 2),
+            "rsi": round(latest["RSI"], 1) if latest["RSI"] is not None else 0,
+            "volume_ratio": round(latest.get("Vol_Ratio", 0), 2),
+            "above_50dma": bool(close > latest["SMA_50"]),
+            "above_200dma": bool(close > latest["SMA_200"]),
+            "macd_bullish": bool(latest["MACD_Hist"] > 0),
+            "trend": get_trend(df),
+        })
 
         # Step 2: Apply strict filters
         # Price filter
@@ -258,6 +273,7 @@ def screen_stocks(tickers=None):
         "sector_analysis": sector_analysis,
         "index_sentiment": index_analysis,
         "all_candidates": candidates,
+        "stock_universe": stock_universe,
         "caution_alerts": generate_caution_alerts(candidates, index_analysis),
         "oi_sentiment": oi_sentiment,
     }

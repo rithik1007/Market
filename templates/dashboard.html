@@ -32,7 +32,7 @@
             </button>
             <div class="capital-input-wrap" id="capitalWrap" style="display:none;">
                 <span class="capital-label">₹</span>
-                <input type="number" id="capitalInput" class="capital-input" value="100000" min="1000" step="1000" placeholder="Capital">
+                <input type="number" id="capitalInput" class="capital-input" value="100000" min="500" step="500" placeholder="Capital">
             </div>
             <button class="btn btn-ai" id="aiBtn" onclick="runAI()" style="display:none;">
                 <span class="btn-icon">🤖</span> AI Analysis
@@ -671,9 +671,11 @@
                     <div class="watch-header">
                         <strong>${w.ticker}</strong>
                         <span class="watch-sector">${w.sector || ''}</span>
+                        ${w.current_price ? `<span class="watch-price">Now: ${w.current_price}</span>` : ''}
                         ${w.trigger_level ? `<span class="watch-trigger">Trigger: ${w.trigger_level}</span>` : ''}
                     </div>
                     <p class="watch-why">${w.why_watch}</p>
+                    ${w.qty_at_trigger ? `<div class="watch-invest">Buy ${w.qty_at_trigger} shares → ${w.investment_amount || ''}</div>` : ''}
                 </div>
             `).join('');
         }
