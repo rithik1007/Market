@@ -222,12 +222,13 @@
             <div class="analyzer-search">
                 <div class="analyzer-input-wrap">
                     <span class="analyzer-icon">🔎</span>
-                    <input type="text" id="stockSymbolInput" class="analyzer-input" placeholder="Enter stock name — e.g. TATASTEEL, RELIANCE, INFY" autocomplete="off">
+                    <input type="text" id="stockSymbolInput" class="analyzer-input" placeholder="Type stock name — e.g. TATA, RELIANCE, INFY" autocomplete="off">
                     <button class="btn btn-primary" id="analyzeBtn" onclick="analyzeStock()">
                         <span class="btn-icon">🤖</span> Analyze
                     </button>
                 </div>
-                <p class="analyzer-hint">Get AI-powered intraday entry/exit levels, swing plan, and key support/resistance</p>
+                <div class="search-dropdown" id="searchDropdown"></div>
+                <p class="analyzer-hint">Start typing to see suggestions. Works with 150+ NSE stocks.</p>
             </div>
             <div class="analyzer-loading" id="analyzerLoading" style="display:none;">
                 <div class="spinner" style="width:32px;height:32px;"></div>
@@ -899,7 +900,50 @@
     // Stock Analyzer
     // ──────────────────────────────────────────────
     document.getElementById('stockSymbolInput').addEventListener('keydown', e => {
-        if (e.key === 'Enter') analyzeStock();
+        if (e.key === 'Enter') { closeSearchDropdown(); analyzeStock(); }
+        if (e.key === 'Escape') closeSearchDropdown();
+    });
+
+    let searchTimeout = null;
+    document.getElementById('stockSymbolInput').addEventListener('input', e => {
+        clearTimeout(searchTimeout);
+        const q = e.target.value.trim();
+        if (q.length < 1) { closeSearchDropdown(); return; }
+        searchTimeout = setTimeout(() => searchStocks(q), 200);
+    });
+
+    async function searchStocks(q) {
+        try {
+            const r = await fetch('/api/stock-search?q=' + encodeURIComponent(q));
+            const j = await r.json();
+            if (j.status === 'success' && j.data.length) {
+                const dd = document.getElementById('searchDropdown');
+                dd.innerHTML = j.data.map(s =>
+                    `<div class="search-item" onclick="selectStock('${s.ticker}')">
+                        <strong>${s.ticker}</strong>
+                        <span class="search-sector">${s.sector}</span>
+                    </div>`
+                ).join('');
+                dd.style.display = 'block';
+            } else {
+                closeSearchDropdown();
+            }
+        } catch(e) { closeSearchDropdown(); }
+    }
+
+    function selectStock(ticker) {
+        document.getElementById('stockSymbolInput').value = ticker;
+        closeSearchDropdown();
+        analyzeStock();
+    }
+
+    function closeSearchDropdown() {
+        document.getElementById('searchDropdown').style.display = 'none';
+    }
+
+    // Close dropdown when clicking outside
+    document.addEventListener('click', e => {
+        if (!e.target.closest('.analyzer-search')) closeSearchDropdown();
     });
 
     async function analyzeStock() {

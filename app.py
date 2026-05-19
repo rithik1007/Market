@@ -12,6 +12,7 @@ from data_fetcher import clear_cache, fetch_stock_data
 from data_sources import MultiSourceManager
 from ai_analysis import generate_ai_analysis, is_configured as ai_configured, analyze_single_stock
 from analyzer import compute_indicators, compute_support_resistance
+from nse_stocks import SECTOR_STOCKS, get_stock_sector
 from history import save_ai_result, get_history, get_history_tickers
 
 
@@ -180,12 +181,29 @@ def analyze_stock():
     try:
         yf_symbol = symbol + ".NS"
         df = fetch_stock_data(yf_symbol, period_days=365)
+
+        # If no data, try yfinance search to find the right ticker
         if df is None or len(df) < 50:
-            return jsonify({"status": "error", "message": f"Not enough data for {symbol}"}), 404
+            suggestion = _search_yf_ticker(symbol)
+            if suggestion and suggestion != symbol:
+                yf_symbol = suggestion + ".NS"
+                df = fetch_stock_data(yf_symbol, period_days=365)
+                if df is not None and len(df) >= 50:
+                    symbol = suggestion  # use corrected ticker
+
+        if df is None or len(df) < 50:
+            # Give helpful error with suggestions from our stock list
+            matches = _find_similar_stocks(symbol)
+            msg = f"Could not find data for '{symbol}'."
+            if matches:
+                msg += f" Did you mean: {', '.join(matches[:5])}?"
+            else:
+                msg += " Try the exact NSE ticker symbol (e.g. TATASTEEL, RELIANCE, INFY)."
+            return jsonify({"status": "error", "message": msg}), 404
 
         df = compute_indicators(df)
         if df is None:
-            return jsonify({"status": "error", "message": f"Could not compute indicators for {symbol}"}), 500
+            return jsonify({"status": "error", "message": f"Not enough trading history for {symbol} to compute all indicators. Try a stock with at least 1 year of history."}), 500
 
         sr = compute_support_resistance(df)
         last = df.iloc[-1]
@@ -231,6 +249,63 @@ def analyze_stock():
     except Exception as e:
         logging.error(f"Analyze stock error: {e}", exc_info=True)
         return jsonify({"status": "error", "message": str(e)}), 500
+
+
+# ──────────────────────────────────────────────
+# Stock search helpers
+# ──────────────────────────────────────────────
+_ALL_STOCKS = []
+for _stocks in SECTOR_STOCKS.values():
+    _ALL_STOCKS.extend(_stocks)
+
+
+def _find_similar_stocks(query):
+    """Find stocks from our universe that match the query (fuzzy)."""
+    q = query.upper().replace(" ", "")
+    matches = []
+    for s in _ALL_STOCKS:
+        if q in s or s in q:
+            matches.append(s)
+    if not matches:
+        for s in _ALL_STOCKS:
+            if q[:3] in s or s[:3] in q:
+                matches.append(s)
+    return matches[:8]
+
+
+def _search_yf_ticker(query):
+    """Use yfinance search to find the correct NSE ticker."""
+    try:
+        import yfinance as yf
+        results = yf.search(query, first_quote=False)
+        if isinstance(results, list):
+            for r in results:
+                sym = r.get("symbol", "")
+                if sym.endswith(".NS"):
+                    return sym.replace(".NS", "")
+    except Exception:
+        pass
+    return None
+
+
+@app.route("/api/stock-search", methods=["GET"])
+def stock_search():
+    """Search for stocks by name/ticker — returns matching suggestions."""
+    q = request.args.get("q", "").strip().upper()
+    if len(q) < 1:
+        return jsonify({"status": "success", "data": []})
+
+    results = []
+    for sector, stocks in SECTOR_STOCKS.items():
+        for s in stocks:
+            if q in s:
+                results.append({"ticker": s, "sector": sector})
+    if not results and len(q) >= 3:
+        yf_match = _search_yf_ticker(q)
+        if yf_match:
+            results.append({"ticker": yf_match, "sector": get_stock_sector(yf_match)})
+
+    return jsonify({"status": "success", "data": results[:10]})
 
 
 if __name__ == "__main__":
