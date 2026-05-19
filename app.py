@@ -8,9 +8,10 @@ import numpy as np
 from flask import Flask, render_template, jsonify, request
 from flask.json.provider import DefaultJSONProvider
 from screener import screen_stocks
-from data_fetcher import clear_cache
+from data_fetcher import clear_cache, fetch_stock_data
 from data_sources import MultiSourceManager
 from ai_analysis import generate_ai_analysis, is_configured as ai_configured
+from history import save_ai_result, get_history, get_history_tickers
 
 
 class NumpyJSONProvider(DefaultJSONProvider):
@@ -89,6 +90,14 @@ def ai_analysis():
         analysis = generate_ai_analysis(_last_scan, capital=capital)
         if analysis is None:
             return jsonify({"status": "error", "message": "AI analysis failed"}), 500
+        # Auto-save to history
+        try:
+            save_ai_result(analysis, capital, {
+                "breakouts_found": _last_scan.get("breakouts_found", 0),
+                "total_scanned": _last_scan.get("total_scanned", 0),
+            })
+        except Exception as he:
+            logging.warning(f"History save failed: {he}")
         return jsonify({"status": "success", "data": analysis})
     except Exception as e:
         logging.error(f"AI analysis error: {e}", exc_info=True)
@@ -126,6 +135,36 @@ def data_sources():
         "status": "success",
         "data": {"active_sources": sources},
     })
+
+
+@app.route("/api/history", methods=["GET"])
+def history():
+    """Return saved AI recommendation history."""
+    try:
+        entries = get_history()
+        return jsonify({"status": "success", "data": entries})
+    except Exception as e:
+        logging.error(f"History error: {e}", exc_info=True)
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route("/api/history/performance", methods=["GET"])
+def history_performance():
+    """Fetch current prices for all historically recommended tickers."""
+    try:
+        tickers = get_history_tickers()
+        prices = {}
+        for t in tickers:
+            try:
+                df = fetch_stock_data(t + ".NS", period="5d")
+                if df is not None and len(df) > 0:
+                    prices[t] = round(float(df["Close"].iloc[-1]), 2)
+            except Exception:
+                pass
+        return jsonify({"status": "success", "data": prices})
+    except Exception as e:
+        logging.error(f"Performance error: {e}", exc_info=True)
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 
 if __name__ == "__main__":

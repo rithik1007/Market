@@ -49,6 +49,14 @@
     </div>
 
     <main class="main">
+        <!-- Tab Navigation -->
+        <div class="tab-nav">
+            <button class="tab-btn active" onclick="switchTab('today')" id="tabToday">📊 Today's Analysis</button>
+            <button class="tab-btn" onclick="switchTab('history')" id="tabHistory">📅 Past Picks</button>
+        </div>
+
+        <!-- TODAY TAB -->
+        <div class="tab-content active" id="todayTab">
         <!-- Stats -->
         <div class="stats-bar" id="statsBar" style="display:none;">
             <div class="stat-card">
@@ -185,6 +193,27 @@
             <button class="btn btn-primary btn-lg" onclick="runScan()">
                 <span class="btn-icon">🔍</span> Run Scan
             </button>
+        </div>
+        </div><!-- end todayTab -->
+
+        <!-- HISTORY TAB -->
+        <div class="tab-content" id="historyTab">
+            <div class="history-controls">
+                <button class="btn btn-secondary" onclick="loadHistory()">
+                    <span class="btn-icon">🔄</span> Refresh History
+                </button>
+                <span class="history-count" id="historyCount"></span>
+            </div>
+            <div class="history-loading" id="historyLoading" style="display:none;">
+                <div class="spinner" style="width:32px;height:32px;"></div>
+                <p>Loading past picks...</p>
+            </div>
+            <div class="history-empty" id="historyEmpty" style="display:none;">
+                <div class="empty-icon">📅</div>
+                <h3>No History Yet</h3>
+                <p>Run a scan and AI analysis to start tracking your daily picks here.</p>
+            </div>
+            <div id="historyEntries"></div>
         </div>
     </main>
 
@@ -688,6 +717,150 @@
     }
 
     document.addEventListener('keydown', e => { if(e.key==='Escape') closeModal(); });
+
+    // ──────────────────────────────────────────────
+    // Tab Navigation
+    // ──────────────────────────────────────────────
+    function switchTab(tab) {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        if (tab === 'history') {
+            document.getElementById('tabHistory').classList.add('active');
+            document.getElementById('historyTab').classList.add('active');
+            if (!historyLoaded) loadHistory();
+        } else {
+            document.getElementById('tabToday').classList.add('active');
+            document.getElementById('todayTab').classList.add('active');
+        }
+    }
+
+    // ──────────────────────────────────────────────
+    // History
+    // ──────────────────────────────────────────────
+    let historyLoaded = false;
+    let historyData = [];
+    let livePrices = {};
+
+    async function loadHistory() {
+        document.getElementById('historyLoading').style.display = 'flex';
+        document.getElementById('historyEmpty').style.display = 'none';
+        document.getElementById('historyEntries').innerHTML = '';
+        try {
+            const [hRes, pRes] = await Promise.all([
+                fetch('/api/history'),
+                fetch('/api/history/performance'),
+            ]);
+            const hJson = await hRes.json();
+            const pJson = await pRes.json();
+            if (hJson.status === 'success') historyData = hJson.data;
+            if (pJson.status === 'success') livePrices = pJson.data;
+            historyLoaded = true;
+            renderHistory();
+        } catch(e) {
+            document.getElementById('historyEntries').innerHTML =
+                `<p class="no-data">Failed to load history: ${e.message}</p>`;
+        }
+        document.getElementById('historyLoading').style.display = 'none';
+    }
+
+    function renderHistory() {
+        const container = document.getElementById('historyEntries');
+        if (!historyData.length) {
+            document.getElementById('historyEmpty').style.display = '';
+            document.getElementById('historyCount').textContent = '';
+            return;
+        }
+        document.getElementById('historyCount').textContent = `${historyData.length} day${historyData.length > 1 ? 's' : ''} tracked`;
+
+        container.innerHTML = historyData.map(entry => {
+            const picks = entry.picks || [];
+            const buyPicks = picks.filter(p => p.action === 'BUY');
+            const watchPicks = picks.filter(p => p.action === 'WATCH');
+            const biasClass = (entry.overall_bias || 'neutral').toLowerCase();
+
+            return `
+            <div class="history-entry">
+                <div class="history-header">
+                    <div class="history-date">
+                        <span class="history-date-main">${formatDate(entry.date)}</span>
+                        <span class="history-date-time">${entry.timestamp || ''}</span>
+                    </div>
+                    <div class="history-meta">
+                        <span class="ai-badge ai-bias-${biasClass}">${entry.overall_bias || '—'}</span>
+                        <span class="history-capital">₹${(entry.capital || 0).toLocaleString()}</span>
+                        <span class="history-stat">${entry.breakouts_found || 0} breakouts / ${entry.total_scanned || 0} scanned</span>
+                    </div>
+                </div>
+                ${entry.market_brief ? `<p class="history-brief">${entry.market_brief}</p>` : ''}
+                ${buyPicks.length ? `
+                    <h4 class="history-picks-title">Trade Plans</h4>
+                    <div class="history-picks-grid">
+                        ${buyPicks.map(p => renderHistoryPick(p, entry.date)).join('')}
+                    </div>
+                ` : ''}
+                ${watchPicks.length ? `
+                    <h4 class="history-picks-title">Watchlist</h4>
+                    <div class="history-picks-grid">
+                        ${watchPicks.map(p => renderHistoryPick(p, entry.date)).join('')}
+                    </div>
+                ` : ''}
+                ${!picks.length ? '<p class="no-data">No picks recorded for this day.</p>' : ''}
+            </div>`;
+        }).join('');
+    }
+
+    function renderHistoryPick(pick, dateStr) {
+        const ticker = pick.ticker || '—';
+        const livePrice = livePrices[ticker];
+        const entryNum = parseFloat(String(pick.entry_price).replace(/[₹,]/g, ''));
+        const t1Num = parseFloat(String(pick.target_1).replace(/[₹,]/g, ''));
+        const slNum = parseFloat(String(pick.stop_loss).replace(/[₹,]/g, ''));
+
+        let status = '', statusClass = '';
+        if (livePrice && entryNum) {
+            if (t1Num && livePrice >= t1Num) {
+                status = '✅ Target Hit';
+                statusClass = 'perf-win';
+            } else if (slNum && livePrice <= slNum) {
+                status = '🛑 SL Hit';
+                statusClass = 'perf-loss';
+            } else {
+                const pnlPct = ((livePrice - entryNum) / entryNum * 100).toFixed(1);
+                status = `${pnlPct >= 0 ? '+' : ''}${pnlPct}%`;
+                statusClass = pnlPct >= 0 ? 'perf-up' : 'perf-down';
+            }
+        }
+
+        return `
+        <div class="history-pick ${pick.action === 'WATCH' ? 'hp-watch' : 'hp-buy'}">
+            <div class="hp-top">
+                <strong class="hp-ticker">${ticker}</strong>
+                <span class="ai-action ai-action-${(pick.action||'').toLowerCase()}">${pick.action || ''}</span>
+                ${pick.conviction ? `<span class="tp-conviction tp-cv-${(pick.conviction||'').toLowerCase()}">${pick.conviction}</span>` : ''}
+                ${status ? `<span class="hp-perf ${statusClass}">${status}</span>` : ''}
+            </div>
+            <div class="hp-levels">
+                ${pick.entry_price ? `<span>Entry: <strong>${pick.entry_price}</strong></span>` : ''}
+                ${pick.stop_loss ? `<span>SL: <strong class="text-red">${pick.stop_loss}</strong></span>` : ''}
+                ${pick.target_1 ? `<span>T1: <strong class="text-green">${pick.target_1}</strong></span>` : ''}
+                ${pick.target_2 ? `<span>T2: <strong class="text-green">${pick.target_2}</strong></span>` : ''}
+            </div>
+            ${livePrice ? `<div class="hp-live">Now: <strong>₹${livePrice.toLocaleString()}</strong></div>` : ''}
+            ${pick.reasoning ? `<p class="hp-reason">${pick.reasoning}</p>` : ''}
+            ${pick.qty ? `<span class="hp-qty">${pick.qty} shares · ${pick.capital_to_invest || ''}</span>` : ''}
+        </div>`;
+    }
+
+    function formatDate(dateStr) {
+        try {
+            const d = new Date(dateStr + 'T00:00:00');
+            const today = new Date(); today.setHours(0,0,0,0);
+            const yesterday = new Date(today); yesterday.setDate(today.getDate()-1);
+            if (d.getTime() === today.getTime()) return 'Today';
+            if (d.getTime() === yesterday.getTime()) return 'Yesterday';
+            return d.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+        } catch(e) { return dateStr; }
+    }
     </script>
 </body>
 </html>
