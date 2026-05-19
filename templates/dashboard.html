@@ -53,6 +53,7 @@
         <div class="tab-nav">
             <button class="tab-btn active" onclick="switchTab('today')" id="tabToday">📊 Today's Analysis</button>
             <button class="tab-btn" onclick="switchTab('history')" id="tabHistory">📅 Past Picks</button>
+            <button class="tab-btn" onclick="switchTab('analyzer')" id="tabAnalyzer">🔎 Analyze Stock</button>
         </div>
 
         <!-- TODAY TAB -->
@@ -214,6 +215,25 @@
                 <p>Run a scan and AI analysis to start tracking your daily picks here.</p>
             </div>
             <div id="historyEntries"></div>
+        </div>
+
+        <!-- ANALYZER TAB -->
+        <div class="tab-content" id="analyzerTab">
+            <div class="analyzer-search">
+                <div class="analyzer-input-wrap">
+                    <span class="analyzer-icon">🔎</span>
+                    <input type="text" id="stockSymbolInput" class="analyzer-input" placeholder="Enter stock name — e.g. TATASTEEL, RELIANCE, INFY" autocomplete="off">
+                    <button class="btn btn-primary" id="analyzeBtn" onclick="analyzeStock()">
+                        <span class="btn-icon">🤖</span> Analyze
+                    </button>
+                </div>
+                <p class="analyzer-hint">Get AI-powered intraday entry/exit levels, swing plan, and key support/resistance</p>
+            </div>
+            <div class="analyzer-loading" id="analyzerLoading" style="display:none;">
+                <div class="spinner" style="width:32px;height:32px;"></div>
+                <p>Fetching data & generating AI analysis...</p>
+            </div>
+            <div id="analyzerResult"></div>
         </div>
     </main>
 
@@ -644,6 +664,11 @@
                         <span class="tp-hold">${p.holding_period || ''}</span>
                     </div>
                     <p class="tp-reasoning">${p.reasoning}</p>
+                    ${p.entry_timing || p.exit_timing ? `
+                    <div class="tp-timing">
+                        ${p.entry_timing ? `<div class="tp-timing-box"><span class="tp-timing-lbl">📥 When to Enter</span><p class="tp-timing-val">${p.entry_timing}</p></div>` : ''}
+                        ${p.exit_timing ? `<div class="tp-timing-box"><span class="tp-timing-lbl">📤 When to Exit</span><p class="tp-timing-val">${p.exit_timing}</p></div>` : ''}
+                    </div>` : ''}
                     ${p.action === 'BUY' ? `
                     <div class="tp-levels">
                         <div class="tp-level">
@@ -704,6 +729,11 @@
                         ${w.trigger_level ? `<span class="watch-trigger">Trigger: ${w.trigger_level}</span>` : ''}
                     </div>
                     <p class="watch-why">${w.why_watch}</p>
+                    ${w.entry_timing || w.exit_timing ? `
+                    <div class="tp-timing" style="margin-top:8px;">
+                        ${w.entry_timing ? `<div class="tp-timing-box"><span class="tp-timing-lbl">📥 When to Enter</span><p class="tp-timing-val">${w.entry_timing}</p></div>` : ''}
+                        ${w.exit_timing ? `<div class="tp-timing-box"><span class="tp-timing-lbl">📤 When to Exit</span><p class="tp-timing-val">${w.exit_timing}</p></div>` : ''}
+                    </div>` : ''}
                     ${w.qty_at_trigger ? `<div class="watch-invest">Buy ${w.qty_at_trigger} shares → ${w.investment_amount || ''}</div>` : ''}
                 </div>
             `).join('');
@@ -728,6 +758,9 @@
             document.getElementById('tabHistory').classList.add('active');
             document.getElementById('historyTab').classList.add('active');
             if (!historyLoaded) loadHistory();
+        } else if (tab === 'analyzer') {
+            document.getElementById('tabAnalyzer').classList.add('active');
+            document.getElementById('analyzerTab').classList.add('active');
         } else {
             document.getElementById('tabToday').classList.add('active');
             document.getElementById('todayTab').classList.add('active');
@@ -860,6 +893,161 @@
             if (d.getTime() === yesterday.getTime()) return 'Yesterday';
             return d.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
         } catch(e) { return dateStr; }
+    }
+
+    // ──────────────────────────────────────────────
+    // Stock Analyzer
+    // ──────────────────────────────────────────────
+    document.getElementById('stockSymbolInput').addEventListener('keydown', e => {
+        if (e.key === 'Enter') analyzeStock();
+    });
+
+    async function analyzeStock() {
+        const input = document.getElementById('stockSymbolInput');
+        const symbol = input.value.trim().toUpperCase();
+        if (!symbol) { input.focus(); return; }
+
+        const btn = document.getElementById('analyzeBtn');
+        const loading = document.getElementById('analyzerLoading');
+        const result = document.getElementById('analyzerResult');
+
+        btn.disabled = true; btn.innerHTML = '<span class="btn-icon">⏳</span> Analyzing...';
+        loading.style.display = 'flex';
+        result.innerHTML = '';
+
+        try {
+            const r = await fetch('/api/analyze-stock?symbol=' + encodeURIComponent(symbol));
+            const j = await r.json();
+            if (j.status === 'success') {
+                renderStockAnalysis(j.data);
+            } else {
+                result.innerHTML = `<div class="alert alert-warning">${j.message || 'Analysis failed'}</div>`;
+            }
+        } catch(e) {
+            result.innerHTML = `<div class="alert alert-warning">Error: ${e.message}</div>`;
+        }
+
+        loading.style.display = 'none';
+        btn.disabled = false; btn.innerHTML = '<span class="btn-icon">🤖</span> Analyze';
+    }
+
+    function renderStockAnalysis(data) {
+        const t = data.technicals || {};
+        const ip = data.intraday_plan || {};
+        const sp = data.swing_plan || {};
+        const kl = data.key_levels || {};
+        const signals = data.signals || [];
+        const verdictClass = (data.verdict || '').includes('BUY') ? 'green' :
+                             (data.verdict || '').includes('AVOID') || (data.verdict || '').includes('SHORT') ? 'red' : 'yellow';
+
+        document.getElementById('analyzerResult').innerHTML = `
+        <div class="sa-card">
+            <div class="sa-header">
+                <div>
+                    <h2 class="sa-ticker">${data.ticker || t.ticker || '—'}</h2>
+                    <div class="sa-price-row">
+                        <span class="sa-price">₹${t.close || '—'}</span>
+                        <span class="${(t.change_pct||0)>=0?'text-green':'text-red'}">${(t.change_pct||0)>0?'+':''}${t.change_pct||0}%</span>
+                    </div>
+                </div>
+                <div class="sa-verdict-wrap">
+                    <span class="sa-verdict badge-${verdictClass}">${data.verdict || '—'}</span>
+                </div>
+            </div>
+            <p class="sa-brief">${data.brief || ''}</p>
+
+            <!-- Technicals Strip -->
+            <div class="sa-technicals">
+                <div class="sa-tech-item"><span class="sa-tech-lbl">RSI</span><span class="sa-tech-val ${t.rsi>70?'text-red':t.rsi<30?'text-green':''}">${t.rsi||'—'}</span></div>
+                <div class="sa-tech-item"><span class="sa-tech-lbl">VWAP</span><span class="sa-tech-val">₹${t.vwap||'—'}</span></div>
+                <div class="sa-tech-item"><span class="sa-tech-lbl">ATR</span><span class="sa-tech-val">₹${t.atr||'—'}</span></div>
+                <div class="sa-tech-item"><span class="sa-tech-lbl">Vol</span><span class="sa-tech-val">${t.volume_ratio||'—'}x</span></div>
+                <div class="sa-tech-item"><span class="sa-tech-lbl">50 DMA</span><span class="sa-tech-val ${t.above_50dma?'text-green':'text-red'}">${t.above_50dma?'Above':'Below'}</span></div>
+                <div class="sa-tech-item"><span class="sa-tech-lbl">200 DMA</span><span class="sa-tech-val ${t.above_200dma?'text-green':'text-red'}">${t.above_200dma?'Above':'Below'}</span></div>
+                <div class="sa-tech-item"><span class="sa-tech-lbl">MACD</span><span class="sa-tech-val ${t.macd_hist>0?'text-green':'text-red'}">${t.macd_hist>0?'Bullish':'Bearish'}</span></div>
+            </div>
+
+            <div class="sa-plans-grid">
+                <!-- Intraday Plan -->
+                <div class="sa-plan ${ip.bias==='BULLISH'?'sa-plan-bull':ip.bias==='BEARISH'?'sa-plan-bear':'sa-plan-neutral'}">
+                    <h3 class="sa-plan-title">⚡ Intraday Plan <span class="sa-plan-bias">${ip.bias||''}</span></h3>
+                    <div class="sa-timing-box">
+                        <div class="sa-timing">
+                            <span class="sa-timing-lbl">📥 WHEN TO ENTER</span>
+                            <p class="sa-timing-val">${ip.entry_timing||'—'}</p>
+                        </div>
+                        <div class="sa-timing">
+                            <span class="sa-timing-lbl">📤 WHEN TO EXIT</span>
+                            <p class="sa-timing-val">${ip.exit_timing||'—'}</p>
+                        </div>
+                    </div>
+                    <div class="sa-levels-grid">
+                        <div class="sa-lvl"><span class="sa-lvl-lbl">Entry</span><span class="sa-lvl-val">${ip.entry_price||'—'}</span></div>
+                        <div class="sa-lvl"><span class="sa-lvl-lbl">Stop Loss</span><span class="sa-lvl-val text-red">${ip.stop_loss||'—'}</span></div>
+                        <div class="sa-lvl"><span class="sa-lvl-lbl">Target 1</span><span class="sa-lvl-val text-green">${ip.target_1||'—'}</span></div>
+                        <div class="sa-lvl"><span class="sa-lvl-lbl">Target 2</span><span class="sa-lvl-val text-green">${ip.target_2||'—'}</span></div>
+                        <div class="sa-lvl"><span class="sa-lvl-lbl">Target 3</span><span class="sa-lvl-val text-green">${ip.target_3||'—'}</span></div>
+                        <div class="sa-lvl"><span class="sa-lvl-lbl">R:R</span><span class="sa-lvl-val">${ip.risk_reward||'—'}</span></div>
+                    </div>
+                    ${ip.qty_for_1L ? `
+                    <div class="sa-pnl-row">
+                        <span>Qty (₹1L capital): <strong>${ip.qty_for_1L} shares</strong></span>
+                        <span class="text-green">Max Profit: <strong>${ip.max_profit||'—'}</strong></span>
+                        <span class="text-red">Max Loss: <strong>${ip.max_loss||'—'}</strong></span>
+                    </div>` : ''}
+                </div>
+
+                <!-- Swing Plan -->
+                <div class="sa-plan ${sp.bias==='BULLISH'?'sa-plan-bull':sp.bias==='BEARISH'?'sa-plan-bear':'sa-plan-neutral'}">
+                    <h3 class="sa-plan-title">📈 Swing Plan <span class="sa-plan-bias">${sp.bias||''} · ${sp.holding_period||''}</span></h3>
+                    <div class="sa-timing-box">
+                        <div class="sa-timing">
+                            <span class="sa-timing-lbl">📥 WHEN TO ENTER</span>
+                            <p class="sa-timing-val">${sp.entry_timing||'—'}</p>
+                        </div>
+                        <div class="sa-timing">
+                            <span class="sa-timing-lbl">📤 WHEN TO EXIT</span>
+                            <p class="sa-timing-val">${sp.exit_timing||'—'}</p>
+                        </div>
+                    </div>
+                    <div class="sa-levels-grid">
+                        <div class="sa-lvl"><span class="sa-lvl-lbl">Entry</span><span class="sa-lvl-val">${sp.entry_price||'—'}</span></div>
+                        <div class="sa-lvl"><span class="sa-lvl-lbl">Stop Loss</span><span class="sa-lvl-val text-red">${sp.stop_loss||'—'}</span></div>
+                        <div class="sa-lvl"><span class="sa-lvl-lbl">Target 1</span><span class="sa-lvl-val text-green">${sp.target_1||'—'}</span></div>
+                        <div class="sa-lvl"><span class="sa-lvl-lbl">Target 2</span><span class="sa-lvl-val text-green">${sp.target_2||'—'}</span></div>
+                        <div class="sa-lvl"><span class="sa-lvl-lbl">R:R</span><span class="sa-lvl-val">${sp.risk_reward||'—'}</span></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Key Levels -->
+            <div class="sa-key-levels">
+                <h3 class="sa-section-title">Key Levels</h3>
+                <div class="sa-levels-strip">
+                    ${kl.support_2?`<div class="sa-kl sa-kl-support"><span>S2</span><strong>${kl.support_2}</strong></div>`:''}
+                    ${kl.support_1?`<div class="sa-kl sa-kl-support"><span>S1</span><strong>${kl.support_1}</strong></div>`:''}
+                    ${kl.pivot?`<div class="sa-kl sa-kl-pivot"><span>Pivot</span><strong>${kl.pivot}</strong></div>`:''}
+                    ${kl.vwap?`<div class="sa-kl sa-kl-pivot"><span>VWAP</span><strong>${kl.vwap}</strong></div>`:''}
+                    ${kl.resistance_1?`<div class="sa-kl sa-kl-resist"><span>R1</span><strong>${kl.resistance_1}</strong></div>`:''}
+                    ${kl.resistance_2?`<div class="sa-kl sa-kl-resist"><span>R2</span><strong>${kl.resistance_2}</strong></div>`:''}
+                </div>
+            </div>
+
+            <!-- Signals -->
+            ${signals.length ? `
+            <div class="sa-signals">
+                <h3 class="sa-section-title">Signals</h3>
+                <div class="sa-signals-list">
+                    ${signals.map(s => `<span class="sa-signal">${s}</span>`).join('')}
+                </div>
+            </div>` : ''}
+
+            <!-- Avoid If -->
+            ${data.avoid_if ? `
+            <div class="alert alert-warning" style="margin-top:16px;">
+                <strong>⚠ Invalidation:</strong> ${data.avoid_if}
+            </div>` : ''}
+        </div>`;
     }
     </script>
 </body>

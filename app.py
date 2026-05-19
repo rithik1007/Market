@@ -10,7 +10,8 @@ from flask.json.provider import DefaultJSONProvider
 from screener import screen_stocks
 from data_fetcher import clear_cache, fetch_stock_data
 from data_sources import MultiSourceManager
-from ai_analysis import generate_ai_analysis, is_configured as ai_configured
+from ai_analysis import generate_ai_analysis, is_configured as ai_configured, analyze_single_stock
+from analyzer import compute_indicators, compute_support_resistance
 from history import save_ai_result, get_history, get_history_tickers
 
 
@@ -164,6 +165,71 @@ def history_performance():
         return jsonify({"status": "success", "data": prices})
     except Exception as e:
         logging.error(f"Performance error: {e}", exc_info=True)
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route("/api/analyze-stock", methods=["GET"])
+def analyze_stock():
+    """AI-powered intraday/swing analysis for a single stock."""
+    if not ai_configured():
+        return jsonify({"status": "error", "message": "Azure OpenAI not configured"}), 503
+    symbol = request.args.get("symbol", "").strip().upper()
+    if not symbol:
+        return jsonify({"status": "error", "message": "Provide ?symbol=STOCKNAME"}), 400
+
+    try:
+        yf_symbol = symbol + ".NS"
+        df = fetch_stock_data(yf_symbol, period="1y")
+        if df is None or len(df) < 50:
+            return jsonify({"status": "error", "message": f"Not enough data for {symbol}"}), 404
+
+        df = compute_indicators(df)
+        if df is None:
+            return jsonify({"status": "error", "message": f"Could not compute indicators for {symbol}"}), 500
+
+        sr = compute_support_resistance(df)
+        last = df.iloc[-1]
+
+        stock_data = {
+            "ticker": symbol,
+            "close": round(float(last["Close"]), 2),
+            "open": round(float(last["Open"]), 2),
+            "high": round(float(last["High"]), 2),
+            "low": round(float(last["Low"]), 2),
+            "volume": int(last["Volume"]),
+            "prev_close": round(float(df.iloc[-2]["Close"]), 2) if len(df) > 1 else None,
+            "change_pct": round(float((last["Close"] - df.iloc[-2]["Close"]) / df.iloc[-2]["Close"] * 100), 2) if len(df) > 1 else 0,
+            "rsi": round(float(last.get("RSI", 0)), 1),
+            "macd": round(float(last.get("MACD", 0)), 2),
+            "macd_signal": round(float(last.get("MACD_Signal", 0)), 2),
+            "macd_hist": round(float(last.get("MACD_Hist", 0)), 2),
+            "sma_20": round(float(last.get("SMA_20", 0)), 2),
+            "sma_50": round(float(last.get("SMA_50", 0)), 2),
+            "sma_200": round(float(last.get("SMA_200", 0)), 2),
+            "ema_20": round(float(last.get("EMA_20", 0)), 2),
+            "upper_band": round(float(last.get("Upper_Band", 0)), 2),
+            "lower_band": round(float(last.get("Lower_Band", 0)), 2),
+            "atr": round(float(last.get("ATR", 0)), 2),
+            "vwap": round(float(last.get("VWAP", 0)), 2),
+            "volume_ratio": round(float(last["Volume"] / df["Volume"].rolling(20).mean().iloc[-1]), 2) if df["Volume"].rolling(20).mean().iloc[-1] > 0 else 1.0,
+            "above_50dma": bool(last["Close"] > last.get("SMA_50", 0)),
+            "above_200dma": bool(last["Close"] > last.get("SMA_200", 0)),
+            "support_levels": sr.get("support", []),
+            "resistance_levels": sr.get("resistance", []),
+            "5d_high": round(float(df["High"].tail(5).max()), 2),
+            "5d_low": round(float(df["Low"].tail(5).min()), 2),
+            "20d_high": round(float(df["High"].tail(20).max()), 2),
+            "20d_low": round(float(df["Low"].tail(20).min()), 2),
+        }
+
+        analysis = analyze_single_stock(stock_data)
+        if analysis is None:
+            return jsonify({"status": "error", "message": "AI analysis failed"}), 500
+        # Include raw technicals so frontend can show them
+        analysis["technicals"] = stock_data
+        return jsonify({"status": "success", "data": analysis})
+    except Exception as e:
+        logging.error(f"Analyze stock error: {e}", exc_info=True)
         return jsonify({"status": "error", "message": str(e)}), 500
 
 

@@ -829,3 +829,194 @@ body {
     .hp-levels { gap: 8px; }
     .history-date-main { font-size: 16px; }
 }
+
+/* ──────────────────────────────────────────────
+   Stock Analyzer Tab
+   ────────────────────────────────────────────── */
+.analyzer-search {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 24px; margin-bottom: 20px;
+    text-align: center;
+}
+.analyzer-input-wrap {
+    display: flex; align-items: center; gap: 0;
+    max-width: 600px; margin: 0 auto 12px;
+    background: var(--bg-input); border: 2px solid var(--border);
+    border-radius: var(--radius); overflow: hidden;
+    transition: border-color 0.2s;
+}
+.analyzer-input-wrap:focus-within { border-color: var(--accent); }
+.analyzer-icon { padding: 0 12px; font-size: 18px; }
+.analyzer-input {
+    flex: 1; background: transparent; border: none; outline: none;
+    color: var(--text-primary); font-size: 16px; font-weight: 600;
+    padding: 12px 8px; font-family: 'JetBrains Mono', monospace;
+}
+.analyzer-input::placeholder { color: var(--text-muted); font-weight: 400; font-size: 14px; }
+.analyzer-input-wrap .btn { border-radius: 0; height: 100%; padding: 12px 20px; }
+.analyzer-hint { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+.analyzer-loading {
+    display: flex; flex-direction: column; align-items: center;
+    gap: 12px; padding: 40px; color: var(--text-muted);
+}
+
+/* Stock Analysis Card */
+.sa-card {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 24px;
+}
+.sa-header {
+    display: flex; justify-content: space-between; align-items: flex-start;
+    margin-bottom: 16px;
+}
+.sa-ticker { font-size: 24px; font-weight: 800; margin-bottom: 4px; }
+.sa-price-row { display: flex; align-items: baseline; gap: 10px; }
+.sa-price {
+    font-size: 28px; font-weight: 800;
+    font-family: 'JetBrains Mono', monospace;
+}
+.sa-verdict-wrap { display: flex; align-items: center; }
+.sa-verdict {
+    padding: 8px 20px; border-radius: var(--radius);
+    font-size: 14px; font-weight: 800; text-transform: uppercase;
+    letter-spacing: 1px;
+}
+.badge-green { background: var(--green-bg); color: var(--green); border: 2px solid var(--green); }
+.badge-red { background: var(--red-bg); color: var(--red); border: 2px solid var(--red); }
+.badge-yellow { background: var(--yellow-bg); color: var(--yellow); border: 2px solid var(--yellow); }
+
+.sa-brief {
+    font-size: 14px; color: var(--text-secondary); line-height: 1.7;
+    margin-bottom: 20px;
+}
+
+/* Technicals Strip */
+.sa-technicals {
+    display: flex; gap: 10px; flex-wrap: wrap;
+    margin-bottom: 20px; padding: 14px;
+    background: var(--bg-input); border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+}
+.sa-tech-item {
+    display: flex; flex-direction: column; align-items: center;
+    padding: 4px 12px; min-width: 70px;
+}
+.sa-tech-lbl { font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+.sa-tech-val { font-size: 14px; font-weight: 700; font-family: 'JetBrains Mono', monospace; }
+
+/* Plans Grid */
+.sa-plans-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+    margin-bottom: 20px;
+}
+.sa-plan {
+    background: var(--bg-input); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 20px;
+}
+.sa-plan-bull { border-top: 4px solid var(--green); }
+.sa-plan-bear { border-top: 4px solid var(--red); }
+.sa-plan-neutral { border-top: 4px solid var(--yellow); }
+
+.sa-plan-title {
+    font-size: 15px; font-weight: 700; margin-bottom: 14px;
+    display: flex; align-items: center; gap: 8px;
+}
+.sa-plan-bias {
+    font-size: 11px; color: var(--text-muted);
+    padding: 2px 8px; background: var(--bg-dark); border-radius: 4px;
+}
+
+/* Entry/Exit Timing Boxes */
+.sa-timing-box {
+    display: flex; flex-direction: column; gap: 10px;
+    margin-bottom: 14px;
+}
+.sa-timing {
+    padding: 10px 14px; border-radius: var(--radius-sm);
+    background: rgba(0,0,0,0.2);
+}
+.sa-timing-lbl {
+    font-size: 10px; font-weight: 800; text-transform: uppercase;
+    letter-spacing: 1px; color: var(--accent); margin-bottom: 4px; display: block;
+}
+.sa-timing-val {
+    font-size: 13px; color: var(--text-primary); line-height: 1.6; margin: 0;
+}
+
+/* Levels Grid */
+.sa-levels-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;
+}
+.sa-lvl {
+    display: flex; flex-direction: column; padding: 8px 10px;
+    background: rgba(0,0,0,0.15); border-radius: var(--radius-sm);
+}
+.sa-lvl-lbl { font-size: 10px; color: var(--text-muted); text-transform: uppercase; }
+.sa-lvl-val { font-size: 14px; font-weight: 700; font-family: 'JetBrains Mono', monospace; }
+
+.sa-pnl-row {
+    display: flex; gap: 16px; flex-wrap: wrap; margin-top: 12px;
+    font-size: 13px; color: var(--text-secondary);
+    padding: 10px 14px; background: rgba(0,0,0,0.2);
+    border-radius: var(--radius-sm);
+}
+
+/* Key Levels Strip */
+.sa-key-levels { margin-bottom: 16px; }
+.sa-section-title {
+    font-size: 14px; font-weight: 700; color: var(--text-secondary);
+    margin-bottom: 10px;
+}
+.sa-levels-strip {
+    display: flex; gap: 8px; flex-wrap: wrap;
+}
+.sa-kl {
+    display: flex; flex-direction: column; align-items: center;
+    padding: 8px 16px; border-radius: var(--radius-sm);
+    min-width: 80px;
+}
+.sa-kl span { font-size: 10px; text-transform: uppercase; margin-bottom: 2px; }
+.sa-kl strong { font-size: 14px; font-family: 'JetBrains Mono', monospace; }
+.sa-kl-support { background: var(--green-bg); color: var(--green); }
+.sa-kl-resist { background: var(--red-bg); color: var(--red); }
+.sa-kl-pivot { background: var(--blue-bg); color: var(--blue); }
+
+/* Signals */
+.sa-signals-list { display: flex; flex-wrap: wrap; gap: 8px; }
+.sa-signal {
+    padding: 6px 12px; border-radius: 20px; font-size: 12px; font-weight: 500;
+    background: var(--bg-input); border: 1px solid var(--border);
+    color: var(--text-secondary);
+}
+
+/* Entry/Exit in general trade plans */
+.tp-timing {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+    margin-bottom: 14px;
+}
+.tp-timing-box {
+    padding: 10px 14px; border-radius: var(--radius-sm);
+    background: rgba(99,102,241,0.06); border: 1px solid rgba(99,102,241,0.15);
+}
+.tp-timing-lbl {
+    font-size: 10px; font-weight: 800; text-transform: uppercase;
+    letter-spacing: 0.5px; color: var(--accent); margin-bottom: 3px; display: block;
+}
+.tp-timing-val { font-size: 12px; color: var(--text-primary); line-height: 1.5; margin: 0; }
+
+/* Responsive */
+@media (max-width: 900px) {
+    .sa-plans-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 600px) {
+    .analyzer-input-wrap { flex-direction: column; border-radius: var(--radius-sm); }
+    .analyzer-input { text-align: center; }
+    .analyzer-input-wrap .btn { width: 100%; justify-content: center; border-radius: 0; }
+    .sa-ticker { font-size: 20px; }
+    .sa-price { font-size: 22px; }
+    .sa-header { flex-direction: column; gap: 12px; }
+    .sa-levels-grid { grid-template-columns: 1fr 1fr; }
+    .sa-timing-box { gap: 8px; }
+    .sa-pnl-row { flex-direction: column; gap: 6px; }
+    .tp-timing { grid-template-columns: 1fr; }
+}

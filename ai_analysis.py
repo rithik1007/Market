@@ -205,6 +205,8 @@ Return this exact JSON:
       "target_1": "₹xxx",
       "target_2": "₹xxx",
       "holding_period": "Intraday / 1-3 Days / 1-2 Weeks / Swing",
+      "entry_timing": "When exactly to enter — e.g. 'Buy on open if gaps above ₹xxx' or 'Wait for 15m candle close above ₹xxx' or 'Enter on pullback to ₹xxx support'",
+      "exit_timing": "When exactly to exit — e.g. 'Book 50% at T1, trail SL to entry for rest' or 'Exit by 3:15 PM if intraday' or 'Exit if RSI crosses 70 on 15m chart'",
       "capital_to_invest": "₹xx,xxx",
       "capital_pct": 20,
       "qty": 10,
@@ -254,6 +256,8 @@ Return this JSON:
       "current_price": "₹xxx",
       "why_watch": "1-2 sentences — reference actual RSI, volume, trend data from the scan",
       "trigger_level": "₹xxx — exact price to enter",
+      "entry_timing": "When to enter — e.g. 'Buy if 15m candle closes above trigger' or 'Enter on open if gaps up'",
+      "exit_timing": "When to exit — e.g. 'Book at ₹xxx (+5%), SL at ₹xxx'",
       "qty_at_trigger": N,
       "investment_amount": "₹xxx"
     }}
@@ -287,3 +291,78 @@ def _parse_ai_response(raw: str) -> Optional[dict]:
 def is_configured() -> bool:
     """Check if Azure OpenAI credentials are present."""
     return bool(os.getenv("AZURE_OPENAI_ENDPOINT") and os.getenv("AZURE_OPENAI_API_KEY"))
+
+
+# ──────────────────────────────────────────────
+# Single Stock Analyzer — Intraday / Swing AI
+# ──────────────────────────────────────────────
+
+STOCK_ANALYZER_SYSTEM = """You are an expert NSE intraday and swing trader.
+You receive hard technical data for a single stock — OHLCV, RSI, MACD, SMAs, Bollinger Bands, ATR, VWAP, support/resistance levels.
+Your job is to give a PRECISE, ACTIONABLE intraday and short-term trading plan.
+
+Rules:
+- Be specific with price levels. No vague advice.
+- Give EXACT entry price, stop loss, and 2-3 targets.
+- Specify TIME-BASED rules: when to enter, when to exit, what to do at market open vs close.
+- Include risk management: position size suggestion for ₹1,00,000 capital.
+- If the stock looks bad for intraday, say so and suggest swing levels instead.
+- All prices in ₹. Output valid JSON only — no markdown, no code fences."""
+
+
+def analyze_single_stock(stock_data: dict) -> Optional[dict]:
+    """Generate AI intraday/swing analysis for a single stock."""
+    user_prompt = f"""Analyze this stock for INTRADAY and short-term trading:
+
+{json.dumps(stock_data, default=str)}
+
+Return this exact JSON:
+{{
+  "ticker": "{stock_data.get('ticker', '')}",
+  "verdict": "STRONG BUY" or "BUY" or "NEUTRAL" or "AVOID" or "SHORT",
+  "brief": "2-3 sentence assessment of current setup",
+  "intraday_plan": {{
+    "bias": "BULLISH" or "BEARISH" or "SIDEWAYS",
+    "entry_price": "₹xxx",
+    "entry_timing": "Exact condition — e.g. 'Buy above ₹xxx after 9:30 AM if 5m candle closes above VWAP'",
+    "stop_loss": "₹xxx",
+    "target_1": "₹xxx",
+    "target_2": "₹xxx",
+    "target_3": "₹xxx",
+    "exit_timing": "When to book profits and when to cut — e.g. 'Book 50% at T1, trail SL to cost. Exit all by 3:15 PM'",
+    "risk_reward": "x:1",
+    "qty_for_1L": N,
+    "max_loss": "₹xxx",
+    "max_profit": "₹xxx"
+  }},
+  "swing_plan": {{
+    "bias": "BULLISH" or "BEARISH" or "SIDEWAYS",
+    "entry_price": "₹xxx",
+    "entry_timing": "Condition to enter for 3-10 day hold",
+    "stop_loss": "₹xxx",
+    "target_1": "₹xxx",
+    "target_2": "₹xxx",
+    "exit_timing": "When to exit swing trade",
+    "holding_period": "X days",
+    "risk_reward": "x:1"
+  }},
+  "key_levels": {{
+    "resistance_1": "₹xxx",
+    "resistance_2": "₹xxx",
+    "support_1": "₹xxx",
+    "support_2": "₹xxx",
+    "vwap": "₹xxx",
+    "pivot": "₹xxx"
+  }},
+  "signals": [
+    "Bullish/bearish signal 1",
+    "Signal 2",
+    "Signal 3"
+  ],
+  "avoid_if": "Condition when this trade is invalid — e.g. 'Avoid if opens below ₹xxx with gap down'"
+}}"""
+
+    raw = _call_llm(STOCK_ANALYZER_SYSTEM, user_prompt, max_tokens=2000)
+    if raw is None:
+        return None
+    return _parse_ai_response(raw)
