@@ -908,8 +908,8 @@
     document.getElementById('stockSymbolInput').addEventListener('input', e => {
         clearTimeout(searchTimeout);
         const q = e.target.value.trim();
-        if (q.length < 1) { closeSearchDropdown(); return; }
-        searchTimeout = setTimeout(() => searchStocks(q), 200);
+        if (q.length < 2) { closeSearchDropdown(); return; }
+        searchTimeout = setTimeout(() => searchStocks(q), 350);
     });
 
     async function searchStocks(q) {
@@ -920,7 +920,10 @@
                 const dd = document.getElementById('searchDropdown');
                 dd.innerHTML = j.data.map(s =>
                     `<div class="search-item" onclick="selectStock('${s.ticker}')">
-                        <strong>${s.ticker}</strong>
+                        <div>
+                            <strong>${s.ticker}</strong>
+                            ${s.name ? `<span class="search-name">${s.name}</span>` : ''}
+                        </div>
                         <span class="search-sector">${s.sector}</span>
                     </div>`
                 ).join('');

@@ -11,7 +11,7 @@ from screener import screen_stocks
 from data_fetcher import clear_cache, fetch_stock_data
 from data_sources import MultiSourceManager
 from ai_analysis import generate_ai_analysis, is_configured as ai_configured, analyze_single_stock
-from analyzer import compute_indicators, compute_support_resistance
+from analyzer import compute_support_resistance
 from nse_stocks import SECTOR_STOCKS, get_stock_sector
 from history import save_ai_result, get_history, get_history_tickers
 
@@ -169,6 +169,50 @@ def history_performance():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
+def _compute_indicators_flexible(df):
+    """Compute indicators on whatever data we have — no minimum rows required."""
+    import pandas as pd
+    df = df.copy()
+    n = len(df)
+    # Moving averages — only compute if enough rows
+    if n >= 20:
+        df["SMA_20"] = df["Close"].rolling(20).mean()
+        df["EMA_20"] = df["Close"].ewm(span=20, adjust=False).mean()
+        df["BB_Mid"] = df["SMA_20"]
+        bb_std = df["Close"].rolling(20).std()
+        df["BB_Upper"] = df["BB_Mid"] + 2 * bb_std
+        df["BB_Lower"] = df["BB_Mid"] - 2 * bb_std
+        df["Vol_SMA"] = df["Volume"].rolling(20).mean()
+    if n >= 50:
+        df["SMA_50"] = df["Close"].rolling(50).mean()
+    if n >= 200:
+        df["SMA_200"] = df["Close"].rolling(200).mean()
+    # RSI
+    if n >= 14:
+        delta = df["Close"].diff()
+        gain = delta.where(delta > 0, 0).rolling(14).mean()
+        loss = (-delta.where(delta < 0, 0)).rolling(14).mean()
+        rs = gain / loss.replace(0, np.nan)
+        df["RSI"] = 100 - (100 / (1 + rs))
+    # MACD
+    if n >= 26:
+        ema12 = df["Close"].ewm(span=12, adjust=False).mean()
+        ema26 = df["Close"].ewm(span=26, adjust=False).mean()
+        df["MACD"] = ema12 - ema26
+        df["MACD_Signal"] = df["MACD"].ewm(span=9, adjust=False).mean()
+        df["MACD_Hist"] = df["MACD"] - df["MACD_Signal"]
+    # ATR
+    if n >= 14:
+        high_low = df["High"] - df["Low"]
+        high_close = (df["High"] - df["Close"].shift()).abs()
+        low_close = (df["Low"] - df["Close"].shift()).abs()
+        true_range = pd.concat([high_low, high_close, low_close], axis=1).max(axis=1)
+        df["ATR"] = true_range.rolling(14).mean()
+    # VWAP
+    df["VWAP"] = (df["Close"] * df["Volume"]).cumsum() / df["Volume"].cumsum()
+    return df
+
+
 @app.route("/api/analyze-stock", methods=["GET"])
 def analyze_stock():
     """AI-powered intraday/swing analysis for a single stock."""
@@ -183,15 +227,18 @@ def analyze_stock():
         df = fetch_stock_data(yf_symbol, period_days=365)
 
         # If no data, try yfinance search to find the right ticker
-        if df is None or len(df) < 50:
-            suggestion = _search_yf_ticker(symbol)
-            if suggestion and suggestion != symbol:
-                yf_symbol = suggestion + ".NS"
-                df = fetch_stock_data(yf_symbol, period_days=365)
-                if df is not None and len(df) >= 50:
-                    symbol = suggestion  # use corrected ticker
+        if df is None or len(df) < 30:
+            yf_matches = _search_yf_ticker(symbol)
+            for m in yf_matches:
+                suggestion = m["ticker"]
+                if suggestion != symbol:
+                    yf_symbol = suggestion + ".NS"
+                    df = fetch_stock_data(yf_symbol, period_days=365)
+                    if df is not None and len(df) >= 30:
+                        symbol = suggestion
+                        break
 
-        if df is None or len(df) < 50:
+        if df is None or len(df) < 30:
             # Give helpful error with suggestions from our stock list
             matches = _find_similar_stocks(symbol)
             msg = f"Could not find data for '{symbol}'."
@@ -201,12 +248,16 @@ def analyze_stock():
                 msg += " Try the exact NSE ticker symbol (e.g. TATASTEEL, RELIANCE, INFY)."
             return jsonify({"status": "error", "message": msg}), 404
 
-        df = compute_indicators(df)
-        if df is None:
-            return jsonify({"status": "error", "message": f"Not enough trading history for {symbol} to compute all indicators. Try a stock with at least 1 year of history."}), 500
-
+        # Compute indicators inline — flexible, works with any amount of data
+        df = _compute_indicators_flexible(df)
         sr = compute_support_resistance(df)
         last = df.iloc[-1]
+
+        def _safe(col, default=0):
+            v = last.get(col)
+            if v is None or (isinstance(v, float) and np.isnan(v)):
+                return default
+            return round(float(v), 2)
 
         stock_data = {
             "ticker": symbol,
@@ -217,21 +268,21 @@ def analyze_stock():
             "volume": int(last["Volume"]),
             "prev_close": round(float(df.iloc[-2]["Close"]), 2) if len(df) > 1 else None,
             "change_pct": round(float((last["Close"] - df.iloc[-2]["Close"]) / df.iloc[-2]["Close"] * 100), 2) if len(df) > 1 else 0,
-            "rsi": round(float(last.get("RSI", 0)), 1),
-            "macd": round(float(last.get("MACD", 0)), 2),
-            "macd_signal": round(float(last.get("MACD_Signal", 0)), 2),
-            "macd_hist": round(float(last.get("MACD_Hist", 0)), 2),
-            "sma_20": round(float(last.get("SMA_20", 0)), 2),
-            "sma_50": round(float(last.get("SMA_50", 0)), 2),
-            "sma_200": round(float(last.get("SMA_200", 0)), 2),
-            "ema_20": round(float(last.get("EMA_20", 0)), 2),
-            "upper_band": round(float(last.get("Upper_Band", 0)), 2),
-            "lower_band": round(float(last.get("Lower_Band", 0)), 2),
-            "atr": round(float(last.get("ATR", 0)), 2),
-            "vwap": round(float(last.get("VWAP", 0)), 2),
+            "rsi": _safe("RSI"),
+            "macd": _safe("MACD"),
+            "macd_signal": _safe("MACD_Signal"),
+            "macd_hist": _safe("MACD_Hist"),
+            "sma_20": _safe("SMA_20"),
+            "sma_50": _safe("SMA_50"),
+            "sma_200": _safe("SMA_200"),
+            "ema_20": _safe("EMA_20"),
+            "upper_band": _safe("BB_Upper"),
+            "lower_band": _safe("BB_Lower"),
+            "atr": _safe("ATR"),
+            "vwap": _safe("VWAP"),
             "volume_ratio": round(float(last["Volume"] / df["Volume"].rolling(20).mean().iloc[-1]), 2) if df["Volume"].rolling(20).mean().iloc[-1] > 0 else 1.0,
-            "above_50dma": bool(last["Close"] > last.get("SMA_50", 0)),
-            "above_200dma": bool(last["Close"] > last.get("SMA_200", 0)),
+            "above_50dma": bool(last["Close"] > _safe("SMA_50")) if _safe("SMA_50") else None,
+            "above_200dma": bool(last["Close"] > _safe("SMA_200")) if _safe("SMA_200") else None,
             "support_levels": sr.get("support", []),
             "resistance_levels": sr.get("resistance", []),
             "5d_high": round(float(df["High"].tail(5).max()), 2),
@@ -274,38 +325,60 @@ def _find_similar_stocks(query):
 
 
 def _search_yf_ticker(query):
-    """Use yfinance search to find the correct NSE ticker."""
+    """Use yfinance Search to find NSE tickers matching query."""
     try:
-        import yfinance as yf
-        results = yf.search(query, first_quote=False)
+        from yfinance import Search
+        results = Search(query).quotes
+        matches = []
         if isinstance(results, list):
             for r in results:
                 sym = r.get("symbol", "")
                 if sym.endswith(".NS"):
-                    return sym.replace(".NS", "")
+                    ticker = sym.replace(".NS", "")
+                    name = r.get("shortname", r.get("longname", ""))
+                    matches.append({"ticker": ticker, "name": name})
+        return matches
     except Exception:
-        pass
-    return None
+        return []
 
 
 @app.route("/api/stock-search", methods=["GET"])
 def stock_search():
-    """Search for stocks by name/ticker — returns matching suggestions."""
+    """Search for stocks by name/ticker — local list + Yahoo Finance for full NSE coverage."""
     q = request.args.get("q", "").strip().upper()
     if len(q) < 1:
         return jsonify({"status": "success", "data": []})
 
+    seen = set()
     results = []
+
+    # 1. Instant local matches (our 150 curated stocks)
     for sector, stocks in SECTOR_STOCKS.items():
         for s in stocks:
             if q in s:
-                results.append({"ticker": s, "sector": sector})
-    if not results and len(q) >= 3:
-        yf_match = _search_yf_ticker(q)
-        if yf_match:
-            results.append({"ticker": yf_match, "sector": get_stock_sector(yf_match)})
+                results.append({"ticker": s, "sector": sector, "name": ""})
+                seen.add(s)
 
-    return jsonify({"status": "success", "data": results[:10]})
+    # 2. Yahoo Finance search (covers ALL NSE-listed stocks)
+    if len(q) >= 2:
+        yf_matches = _search_yf_ticker(q)
+        for m in yf_matches:
+            t = m["ticker"]
+            if t not in seen:
+                results.append({"ticker": t, "sector": get_stock_sector(t), "name": m["name"]})
+                seen.add(t)
+
+    # 3. Direct ticker probe — if user typed an exact ticker not found above
+    if not results and len(q) >= 3:
+        try:
+            import yfinance as yf
+            info = yf.Ticker(q + ".NS").fast_info
+            if hasattr(info, "last_price") and info.last_price:
+                results.append({"ticker": q, "sector": "NSE", "name": f"₹{info.last_price:.2f}"})
+        except Exception:
+            pass
+
+    return jsonify({"status": "success", "data": results[:12]})
 
 
 if __name__ == "__main__":
