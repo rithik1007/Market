@@ -157,7 +157,7 @@ def history_performance():
         prices = {}
         for t in tickers:
             try:
-                df = fetch_stock_data(t + ".NS", period="5d")
+                df = fetch_stock_data(t + ".NS", period_days=10)
                 if df is not None and len(df) > 0:
                     prices[t] = round(float(df["Close"].iloc[-1]), 2)
             except Exception:
@@ -179,7 +179,7 @@ def analyze_stock():
 
     try:
         yf_symbol = symbol + ".NS"
-        df = fetch_stock_data(yf_symbol, period="1y")
+        df = fetch_stock_data(yf_symbol, period_days=365)
         if df is None or len(df) < 50:
             return jsonify({"status": "error", "message": f"Not enough data for {symbol}"}), 404
 
