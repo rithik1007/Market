@@ -831,6 +831,171 @@ body {
 }
 
 /* ──────────────────────────────────────────────
+   Timeframe Selector
+   ────────────────────────────────────────────── */
+.timeframe-wrap {
+    display: flex; align-items: center;
+}
+.timeframe-select {
+    background: var(--bg-input); color: var(--text-primary);
+    border: 1px solid var(--border); border-radius: var(--radius-sm);
+    padding: 7px 12px; font-size: 13px; font-weight: 500;
+    font-family: 'Inter', sans-serif; cursor: pointer;
+    transition: border-color 0.2s;
+}
+.timeframe-select:focus { outline: none; border-color: var(--accent); }
+.timeframe-select option { background: var(--bg-card); color: var(--text-primary); }
+
+/* ──────────────────────────────────────────────
+   AI Recommendation History Tab
+   ────────────────────────────────────────────── */
+.ai-history-header-bar {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 20px 24px;
+    margin-bottom: 20px;
+}
+.ai-history-header-bar .section-title {
+    margin-bottom: 4px;
+}
+.ai-history-subtitle {
+    font-size: 13px; color: var(--text-muted); margin-bottom: 16px;
+}
+.ai-history-controls {
+    display: flex; align-items: flex-start; gap: 16px; flex-wrap: wrap;
+}
+.ai-history-loading {
+    display: flex; flex-direction: column; align-items: center;
+    gap: 12px; padding: 40px; color: var(--text-muted);
+}
+.ai-history-empty {
+    text-align: center; padding: 60px 20px; color: var(--text-muted);
+}
+.ai-history-empty .empty-icon { font-size: 48px; margin-bottom: 12px; }
+.ai-history-empty h3 { font-size: 18px; color: var(--text-secondary); margin-bottom: 8px; }
+.ai-history-empty p { font-size: 14px; }
+
+/* AI Stats Grid */
+.ai-stats-grid {
+    display: flex; gap: 12px; flex-wrap: wrap;
+}
+.ai-stat {
+    background: var(--bg-input); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); padding: 10px 16px;
+    text-align: center; min-width: 90px;
+}
+.ai-stat-val {
+    display: block; font-size: 20px; font-weight: 800;
+    font-family: 'JetBrains Mono', monospace;
+}
+.ai-stat-lbl {
+    display: block; font-size: 11px; color: var(--text-muted);
+    text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px;
+}
+
+/* AI Recommendation Entry */
+.ai-rec-entry {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 20px 24px;
+    margin-bottom: 16px;
+}
+.ai-rec-header {
+    display: flex; justify-content: space-between; align-items: center;
+    flex-wrap: wrap; gap: 12px; margin-bottom: 12px;
+    padding-bottom: 12px; border-bottom: 1px solid var(--border);
+}
+.ai-rec-date {
+    font-size: 18px; font-weight: 800;
+}
+.ai-rec-time {
+    font-size: 12px; color: var(--text-muted); margin-left: 8px;
+    font-family: 'JetBrains Mono', monospace;
+}
+.ai-rec-meta {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+}
+.ai-rec-timeframe {
+    font-size: 13px; font-weight: 600; color: var(--purple);
+    background: rgba(139, 92, 246, 0.12); padding: 3px 10px;
+    border-radius: 4px; font-family: 'JetBrains Mono', monospace;
+}
+.ai-rec-capital {
+    font-size: 14px; font-weight: 700; color: var(--accent);
+    font-family: 'JetBrains Mono', monospace;
+}
+.ai-rec-summary {
+    font-size: 14px; color: var(--text-secondary); line-height: 1.6;
+    margin-bottom: 14px; padding: 10px 14px;
+    background: var(--blue-bg); border-radius: var(--radius-sm);
+    border-left: 3px solid var(--blue);
+}
+.ai-rec-picks {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    gap: 12px;
+}
+
+/* Individual AI Recommendation Pick */
+.ai-rec-pick {
+    background: var(--bg-input); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); padding: 16px 18px;
+}
+.ai-rec-buy { border-left: 4px solid var(--green); }
+.ai-rec-watch { border-left: 4px solid var(--blue); }
+
+.ai-rec-pick-top {
+    display: flex; align-items: center; gap: 8px;
+    flex-wrap: wrap; margin-bottom: 12px;
+}
+.ai-rec-ticker { font-size: 17px; }
+
+/* Outcome badge */
+.ai-rec-outcome {
+    margin-left: auto; padding: 4px 12px; border-radius: 4px;
+    font-size: 12px; font-weight: 800;
+    font-family: 'JetBrains Mono', monospace;
+}
+.outcome-win { background: var(--green-bg); color: var(--green); }
+.outcome-loss { background: var(--red-bg); color: var(--red); }
+.outcome-up { background: var(--green-bg); color: var(--green); }
+.outcome-down { background: var(--red-bg); color: var(--red); }
+
+/* Price comparison row */
+.ai-rec-price-row {
+    display: flex; gap: 16px; flex-wrap: wrap;
+    margin-bottom: 10px; padding: 10px 0;
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+}
+.ai-rec-price-item {
+    display: flex; flex-direction: column; gap: 2px;
+}
+.ai-rec-price-lbl {
+    font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px;
+    color: var(--text-muted); font-weight: 600;
+}
+.ai-rec-price-val {
+    font-size: 14px; font-weight: 700;
+    font-family: 'JetBrains Mono', monospace;
+}
+.ai-rec-reason {
+    font-size: 12px; color: var(--text-muted); line-height: 1.5;
+    margin-bottom: 6px;
+}
+.ai-rec-qty {
+    font-size: 11px; color: var(--text-muted);
+    font-family: 'JetBrains Mono', monospace;
+}
+
+/* Responsive for AI history */
+@media (max-width: 600px) {
+    .ai-rec-entry { padding: 14px 12px; }
+    .ai-rec-header { flex-direction: column; align-items: flex-start; }
+    .ai-rec-picks { grid-template-columns: 1fr; }
+    .ai-stats-grid { gap: 8px; }
+    .ai-stat { min-width: 70px; padding: 8px 10px; }
+    .ai-stat-val { font-size: 16px; }
+}
+
+/* ──────────────────────────────────────────────
    Stock Analyzer Tab
    ────────────────────────────────────────────── */
 .analyzer-search {

@@ -30,7 +30,7 @@ def _save_history(entries: list):
         json.dump(entries, f, indent=2, ensure_ascii=False)
 
 
-def save_ai_result(ai_data: dict, capital: int, scan_summary: dict):
+def save_ai_result(ai_data: dict, capital: int, scan_summary: dict, timeframe: str = "Intraday"):
     """Save an AI analysis result to history. One entry per day (overwrites same day)."""
     today = date.today().isoformat()
     entries = _load_history()
@@ -68,6 +68,7 @@ def save_ai_result(ai_data: dict, capital: int, scan_summary: dict):
         "date": today,
         "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M"),
         "capital": capital,
+        "timeframe": timeframe,
         "overall_bias": ai_data.get("overall_bias", ""),
         "market_brief": ai_data.get("market_brief", ""),
         "best_pick_summary": ai_data.get("best_pick_summary", ""),

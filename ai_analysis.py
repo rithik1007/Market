@@ -90,10 +90,11 @@ Rules:
 - qty = how many shares the trader can buy with allocated capital at entry price. Must be at least 1. If can't afford 1 share, skip that stock.
 - All amounts in Indian Rupees (₹).
 - IMPORTANT: Always recommend at least 1-3 stocks from the affordable list, even in bearish markets.
+- TIMEFRAME: The user will specify a timeframe (Intraday, 1-2 Days, 3-5 Days, 1 Week, 2 Weeks, 1 Month). Tailor holding_period, targets, stop losses, and entry/exit timing to match this timeframe exactly.
 Output valid JSON only — no markdown, no code fences."""
 
 
-def generate_ai_analysis(scan_results: dict, capital: int = 100000) -> Optional[dict]:
+def generate_ai_analysis(scan_results: dict, capital: int = 100000, timeframe: str = "Intraday") -> Optional[dict]:
     """
     Generate AI-powered analysis with concrete trade plans.
     Filters the full stock universe by the user's budget.
@@ -144,6 +145,7 @@ def generate_ai_analysis(scan_results: dict, capital: int = 100000) -> Optional[
 
     payload = {
         "capital": f"₹{capital:,}",
+        "timeframe": timeframe,
         "total_scanned": scan_results["total_scanned"],
         "breakouts_found": scan_results["breakouts_found"],
         "affordable_stocks_count": len(affordable),
@@ -159,9 +161,9 @@ def generate_ai_analysis(scan_results: dict, capital: int = 100000) -> Optional[
     has_breakouts = scan_results["breakouts_found"] > 0
 
     if has_breakouts:
-        user_prompt = _build_trade_prompt(payload, capital)
+        user_prompt = _build_trade_prompt(payload, capital, timeframe)
     else:
-        user_prompt = _build_no_breakout_prompt(payload, capital)
+        user_prompt = _build_no_breakout_prompt(payload, capital, timeframe)
 
     raw = _call_llm(SYSTEM_PROMPT, user_prompt, max_tokens=3000)
     if raw is None:
@@ -171,10 +173,14 @@ def generate_ai_analysis(scan_results: dict, capital: int = 100000) -> Optional[
     return _parse_ai_response(raw)
 
 
-def _build_trade_prompt(payload: dict, capital: int = 100000) -> str:
+def _build_trade_prompt(payload: dict, capital: int = 100000, timeframe: str = "Intraday") -> str:
     """Prompt when breakouts ARE found."""
     cap_fmt = f"₹{capital:,}"
     return f"""Analyze this NSE breakout scan. The trader has {cap_fmt} to invest.
+TIMEFRAME: The trader wants recommendations for the **{timeframe}** timeframe.
+Tailor ALL recommendations (entry timing, holding period, targets, stop losses) to this timeframe.
+For shorter timeframes (Intraday, 1-2 Days), focus on momentum and quick moves.
+For longer timeframes (1-2 Weeks, 1 Month), focus on trend strength and swing setups.
 
 You have two data sources:
 1. "top_picks" — stocks with confirmed breakout patterns (strongest signals)
@@ -224,10 +230,12 @@ Scan Data:
 {json.dumps(payload, default=str)}"""
 
 
-def _build_no_breakout_prompt(payload: dict, capital: int = 100000) -> str:
+def _build_no_breakout_prompt(payload: dict, capital: int = 100000, timeframe: str = "Intraday") -> str:
     """Prompt when NO breakouts found — bearish/flat market."""
     cap_fmt = f"₹{capital:,}"
     return f"""NSE scan found 0 breakouts today. But the trader has {cap_fmt} and wants to know WHAT to buy.
+TIMEFRAME: The trader wants recommendations for the **{timeframe}** timeframe.
+Tailor ALL recommendations (entry timing, holding period, targets, stop losses) to this timeframe.
 
 You have "affordable_stocks" — ALL scanned stocks priced ≤ {cap_fmt}/share with their RSI, volume ratio, trend, and MA positions. Use this data to find the BEST stocks within budget.
 

@@ -89,7 +89,11 @@ def ai_analysis():
             capital = max(500, int(float(capital)))
         except (ValueError, TypeError):
             capital = 100000
-        analysis = generate_ai_analysis(_last_scan, capital=capital)
+        timeframe = request.args.get('timeframe', 'Intraday')
+        allowed_timeframes = ['Intraday', '1-2 Days', '3-5 Days', '1 Week', '2 Weeks', '1 Month']
+        if timeframe not in allowed_timeframes:
+            timeframe = 'Intraday'
+        analysis = generate_ai_analysis(_last_scan, capital=capital, timeframe=timeframe)
         if analysis is None:
             return jsonify({"status": "error", "message": "AI analysis failed"}), 500
         # Auto-save to history
@@ -97,7 +101,7 @@ def ai_analysis():
             save_ai_result(analysis, capital, {
                 "breakouts_found": _last_scan.get("breakouts_found", 0),
                 "total_scanned": _last_scan.get("total_scanned", 0),
-            })
+            }, timeframe=timeframe)
         except Exception as he:
             logging.warning(f"History save failed: {he}")
         return jsonify({"status": "success", "data": analysis})

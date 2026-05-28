@@ -34,6 +34,16 @@
                 <span class="capital-label">₹</span>
                 <input type="number" id="capitalInput" class="capital-input" value="100000" min="500" step="500" placeholder="Capital">
             </div>
+            <div class="timeframe-wrap" id="timeframeWrap" style="display:none;">
+                <select id="timeframeSelect" class="timeframe-select">
+                    <option value="Intraday">Intraday</option>
+                    <option value="1-2 Days">1-2 Days</option>
+                    <option value="3-5 Days">3-5 Days</option>
+                    <option value="1 Week" selected>1 Week</option>
+                    <option value="2 Weeks">2 Weeks</option>
+                    <option value="1 Month">1 Month</option>
+                </select>
+            </div>
             <button class="btn btn-ai" id="aiBtn" onclick="runAI()" style="display:none;">
                 <span class="btn-icon">🤖</span> AI Analysis
             </button>
@@ -52,6 +62,7 @@
         <!-- Tab Navigation -->
         <div class="tab-nav">
             <button class="tab-btn active" onclick="switchTab('today')" id="tabToday">📊 Today's Analysis</button>
+            <button class="tab-btn" onclick="switchTab('aiHistory')" id="tabAiHistory">🤖 AI Recommendations</button>
             <button class="tab-btn" onclick="switchTab('history')" id="tabHistory">📅 Past Picks</button>
             <button class="tab-btn" onclick="switchTab('analyzer')" id="tabAnalyzer">🔎 Analyze Stock</button>
         </div>
@@ -197,6 +208,30 @@
         </div>
         </div><!-- end todayTab -->
 
+        <!-- AI RECOMMENDATIONS TAB -->
+        <div class="tab-content" id="aiHistoryTab">
+            <div class="ai-history-header-bar">
+                <h2 class="section-title">🤖 AI Recommendation Tracker</h2>
+                <p class="ai-history-subtitle">Track AI predictions vs actual outcomes — see if AI was right</p>
+                <div class="ai-history-controls">
+                    <button class="btn btn-secondary" onclick="loadAiHistory()">
+                        <span class="btn-icon">🔄</span> Refresh
+                    </button>
+                    <div class="ai-history-stats" id="aiHistoryStats"></div>
+                </div>
+            </div>
+            <div class="ai-history-loading" id="aiHistoryLoading" style="display:none;">
+                <div class="spinner" style="width:32px;height:32px;"></div>
+                <p>Loading AI recommendations...</p>
+            </div>
+            <div class="ai-history-empty" id="aiHistoryEmpty" style="display:none;">
+                <div class="empty-icon">🤖</div>
+                <h3>No AI Recommendations Yet</h3>
+                <p>Run a scan and AI analysis to start tracking recommendations here.</p>
+            </div>
+            <div id="aiHistoryEntries"></div>
+        </div>
+
         <!-- HISTORY TAB -->
         <div class="tab-content" id="historyTab">
             <div class="history-controls">
@@ -259,6 +294,7 @@
                 render(scanData);
                 document.getElementById('aiBtn').style.display = '';
                 document.getElementById('capitalWrap').style.display = '';
+                document.getElementById('timeframeWrap').style.display = '';
                 runAI();  // auto-trigger AI trade suggestions
             }
             else alert('Scan failed: ' + (j.message || ''));
@@ -276,6 +312,7 @@
                 render(scanData);
                 document.getElementById('aiBtn').style.display = '';
                 document.getElementById('capitalWrap').style.display = '';
+                document.getElementById('timeframeWrap').style.display = '';
                 runAI();  // auto-trigger AI trade suggestions
             }
             else alert('Refresh failed: ' + (j.message || ''));
@@ -595,7 +632,8 @@
         window.scrollTo({top: 0, behavior: 'smooth'});
         try {
             const capital = document.getElementById('capitalInput').value || '100000';
-            const r = await fetch('/api/ai-analysis?capital=' + encodeURIComponent(capital));
+            const timeframe = document.getElementById('timeframeSelect').value || 'Intraday';
+            const r = await fetch('/api/ai-analysis?capital=' + encodeURIComponent(capital) + '&timeframe=' + encodeURIComponent(timeframe));
             const j = await r.json();
             if (j.status === 'success') renderAI(j.data);
             else document.getElementById('aiBrief').innerHTML = '<p class="ai-brief-text">AI analysis unavailable. Use the data below to make your decisions.</p>';
@@ -755,7 +793,11 @@
     function switchTab(tab) {
         document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
         document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-        if (tab === 'history') {
+        if (tab === 'aiHistory') {
+            document.getElementById('tabAiHistory').classList.add('active');
+            document.getElementById('aiHistoryTab').classList.add('active');
+            if (!aiHistoryLoaded) loadAiHistory();
+        } else if (tab === 'history') {
             document.getElementById('tabHistory').classList.add('active');
             document.getElementById('historyTab').classList.add('active');
             if (!historyLoaded) loadHistory();
@@ -1096,6 +1138,160 @@
             </div>` : ''}
         </div>`;
     }
+
+    // ──────────────────────────────────────────────
+    // AI Recommendation History
+    // ──────────────────────────────────────────────
+    let aiHistoryLoaded = false;
+    let aiHistoryData = [];
+    let aiLivePrices = {};
+
+    async function loadAiHistory() {
+        document.getElementById('aiHistoryLoading').style.display = 'flex';
+        document.getElementById('aiHistoryEmpty').style.display = 'none';
+        document.getElementById('aiHistoryEntries').innerHTML = '';
+        try {
+            const [hRes, pRes] = await Promise.all([
+                fetch('/api/history'),
+                fetch('/api/history/performance'),
+            ]);
+            const hJson = await hRes.json();
+            const pJson = await pRes.json();
+            if (hJson.status === 'success') aiHistoryData = hJson.data;
+            if (pJson.status === 'success') aiLivePrices = pJson.data;
+            aiHistoryLoaded = true;
+            renderAiHistory();
+        } catch(e) {
+            document.getElementById('aiHistoryEntries').innerHTML =
+                `<p class="no-data">Failed to load AI history: ${e.message}</p>`;
+        }
+        document.getElementById('aiHistoryLoading').style.display = 'none';
+    }
+
+    function renderAiHistory() {
+        const container = document.getElementById('aiHistoryEntries');
+        if (!aiHistoryData.length) {
+            document.getElementById('aiHistoryEmpty').style.display = '';
+            document.getElementById('aiHistoryStats').innerHTML = '';
+            return;
+        }
+
+        // Compute overall stats
+        let totalPicks = 0, wins = 0, losses = 0, active = 0;
+        aiHistoryData.forEach(entry => {
+            (entry.picks || []).forEach(pick => {
+                if (pick.action !== 'BUY') return;
+                totalPicks++;
+                const livePrice = aiLivePrices[pick.ticker];
+                const entryNum = parseFloat(String(pick.entry_price).replace(/[₹,]/g, ''));
+                const t1Num = parseFloat(String(pick.target_1).replace(/[₹,]/g, ''));
+                const slNum = parseFloat(String(pick.stop_loss).replace(/[₹,]/g, ''));
+                if (livePrice && entryNum) {
+                    if (t1Num && livePrice >= t1Num) wins++;
+                    else if (slNum && livePrice <= slNum) losses++;
+                    else active++;
+                }
+            });
+        });
+        const winRate = totalPicks > 0 ? ((wins / totalPicks) * 100).toFixed(0) : '—';
+
+        document.getElementById('aiHistoryStats').innerHTML = `
+            <div class="ai-stats-grid">
+                <div class="ai-stat"><span class="ai-stat-val">${aiHistoryData.length}</span><span class="ai-stat-lbl">Days Tracked</span></div>
+                <div class="ai-stat"><span class="ai-stat-val">${totalPicks}</span><span class="ai-stat-lbl">Total Picks</span></div>
+                <div class="ai-stat"><span class="ai-stat-val text-green">${wins}</span><span class="ai-stat-lbl">Target Hit</span></div>
+                <div class="ai-stat"><span class="ai-stat-val text-red">${losses}</span><span class="ai-stat-lbl">SL Hit</span></div>
+                <div class="ai-stat"><span class="ai-stat-val">${active}</span><span class="ai-stat-lbl">Active</span></div>
+                <div class="ai-stat"><span class="ai-stat-val ${wins > losses ? 'text-green' : 'text-red'}">${winRate}%</span><span class="ai-stat-lbl">Win Rate</span></div>
+            </div>`;
+
+        container.innerHTML = aiHistoryData.map(entry => {
+            const picks = (entry.picks || []).filter(p => p.action === 'BUY' || p.action === 'WATCH');
+            const timeframe = entry.timeframe || 'N/A';
+            const biasClass = (entry.overall_bias || 'neutral').toLowerCase();
+
+            return `
+            <div class="ai-rec-entry">
+                <div class="ai-rec-header">
+                    <div class="ai-rec-date-block">
+                        <span class="ai-rec-date">${formatDate(entry.date)}</span>
+                        <span class="ai-rec-time">${entry.timestamp || ''}</span>
+                    </div>
+                    <div class="ai-rec-meta">
+                        <span class="ai-badge ai-bias-${biasClass}">${entry.overall_bias || '—'}</span>
+                        <span class="ai-rec-timeframe">⏱ ${timeframe}</span>
+                        <span class="ai-rec-capital">₹${(entry.capital || 0).toLocaleString()}</span>
+                    </div>
+                </div>
+                ${entry.best_pick_summary ? `<div class="ai-rec-summary">💡 ${entry.best_pick_summary}</div>` : ''}
+                <div class="ai-rec-picks">
+                    ${picks.length ? picks.map(pick => renderAiRecPick(pick, entry.date, timeframe)).join('') : '<p class="no-data">No picks for this day.</p>'}
+                </div>
+            </div>`;
+        }).join('');
+    }
+
+    function renderAiRecPick(pick, dateStr, timeframe) {
+        const ticker = pick.ticker || '—';
+        const livePrice = aiLivePrices[ticker];
+        const entryNum = parseFloat(String(pick.entry_price).replace(/[₹,]/g, ''));
+        const t1Num = parseFloat(String(pick.target_1).replace(/[₹,]/g, ''));
+        const slNum = parseFloat(String(pick.stop_loss).replace(/[₹,]/g, ''));
+
+        let outcome = '', outcomeClass = '', outcomeIcon = '';
+        let pnlPct = null;
+        if (livePrice && entryNum) {
+            pnlPct = ((livePrice - entryNum) / entryNum * 100).toFixed(1);
+            if (t1Num && livePrice >= t1Num) {
+                outcome = 'Target Hit'; outcomeClass = 'outcome-win'; outcomeIcon = '✅';
+            } else if (slNum && livePrice <= slNum) {
+                outcome = 'SL Hit'; outcomeClass = 'outcome-loss'; outcomeIcon = '🛑';
+            } else if (pnlPct >= 0) {
+                outcome = 'In Profit'; outcomeClass = 'outcome-up'; outcomeIcon = '📈';
+            } else {
+                outcome = 'In Loss'; outcomeClass = 'outcome-down'; outcomeIcon = '📉';
+            }
+        }
+
+        return `
+        <div class="ai-rec-pick ${pick.action === 'WATCH' ? 'ai-rec-watch' : 'ai-rec-buy'}">
+            <div class="ai-rec-pick-top">
+                <strong class="ai-rec-ticker">${ticker}</strong>
+                <span class="ai-action ai-action-${(pick.action||'').toLowerCase()}">${pick.action || ''}</span>
+                ${pick.conviction ? `<span class="tp-conviction tp-cv-${(pick.conviction||'').toLowerCase()}">${pick.conviction}</span>` : ''}
+                ${outcome ? `<span class="ai-rec-outcome ${outcomeClass}">${outcomeIcon} ${outcome}</span>` : ''}
+            </div>
+            <div class="ai-rec-price-row">
+                <div class="ai-rec-price-item">
+                    <span class="ai-rec-price-lbl">AI Suggested Entry</span>
+                    <span class="ai-rec-price-val">${pick.entry_price || '—'}</span>
+                </div>
+                ${livePrice ? `
+                <div class="ai-rec-price-item">
+                    <span class="ai-rec-price-lbl">Current Price</span>
+                    <span class="ai-rec-price-val">₹${livePrice.toLocaleString()}</span>
+                </div>` : ''}
+                ${pnlPct !== null ? `
+                <div class="ai-rec-price-item">
+                    <span class="ai-rec-price-lbl">P&L</span>
+                    <span class="ai-rec-price-val ${pnlPct >= 0 ? 'text-green' : 'text-red'}">${pnlPct >= 0 ? '+' : ''}${pnlPct}%</span>
+                </div>` : ''}
+                ${pick.target_1 ? `
+                <div class="ai-rec-price-item">
+                    <span class="ai-rec-price-lbl">Target</span>
+                    <span class="ai-rec-price-val text-green">${pick.target_1}</span>
+                </div>` : ''}
+                ${pick.stop_loss ? `
+                <div class="ai-rec-price-item">
+                    <span class="ai-rec-price-lbl">Stop Loss</span>
+                    <span class="ai-rec-price-val text-red">${pick.stop_loss}</span>
+                </div>` : ''}
+            </div>
+            ${pick.reasoning ? `<p class="ai-rec-reason">${pick.reasoning}</p>` : ''}
+            ${pick.qty ? `<span class="ai-rec-qty">${pick.qty} shares · ${pick.capital_to_invest || ''}</span>` : ''}
+        </div>`;
+    }
+
     </script>
 </body>
 </html>
