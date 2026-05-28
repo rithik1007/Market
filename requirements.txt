@@ -5,3 +5,4 @@ numpy>=1.24
 openai>=1.0
 python-dotenv>=1.0
 gunicorn>=21.2
+chromadb>=0.4

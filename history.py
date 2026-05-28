@@ -1,6 +1,7 @@
 """
-History Module — Persist daily AI recommendations to a JSON file.
+History Module — Persist daily AI recommendations using ChromaDB.
 Tracks picks over time so users can review past performance.
+Data survives restarts via ChromaDB's persistent storage.
 """
 
 import os
@@ -9,31 +10,33 @@ import logging
 from datetime import datetime, date
 from typing import Optional
 
+import chromadb
+
 logger = logging.getLogger(__name__)
 
-HISTORY_FILE = os.path.join(os.path.dirname(__file__), "history.json")
+CHROMA_DIR = os.path.join(os.path.dirname(__file__), "chroma_store")
+COLLECTION_NAME = "ai_recommendations"
+
+_client = None
+_collection = None
 
 
-def _load_history() -> list:
-    if not os.path.exists(HISTORY_FILE):
-        return []
-    try:
-        with open(HISTORY_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except (json.JSONDecodeError, IOError):
-        logger.warning("Corrupted history file — starting fresh")
-        return []
-
-
-def _save_history(entries: list):
-    with open(HISTORY_FILE, "w", encoding="utf-8") as f:
-        json.dump(entries, f, indent=2, ensure_ascii=False)
+def _get_collection():
+    """Lazy-init ChromaDB persistent client and collection."""
+    global _client, _collection
+    if _collection is None:
+        _client = chromadb.PersistentClient(path=CHROMA_DIR)
+        _collection = _client.get_or_create_collection(
+            name=COLLECTION_NAME,
+            metadata={"hnsw:space": "cosine"},
+        )
+    return _collection
 
 
 def save_ai_result(ai_data: dict, capital: int, scan_summary: dict, timeframe: str = "Intraday"):
-    """Save an AI analysis result to history. One entry per day (overwrites same day)."""
+    """Save an AI analysis result to ChromaDB. One entry per day (upserts same day)."""
     today = date.today().isoformat()
-    entries = _load_history()
+    collection = _get_collection()
 
     # Extract picks from AI data
     picks = []
@@ -78,32 +81,45 @@ def save_ai_result(ai_data: dict, capital: int, scan_summary: dict, timeframe: s
         "total_scanned": scan_summary.get("total_scanned", 0),
     }
 
-    # Replace existing entry for today, or append
-    replaced = False
-    for i, e in enumerate(entries):
-        if e.get("date") == today:
-            entries[i] = entry
-            replaced = True
-            break
-    if not replaced:
-        entries.append(entry)
-
-    # Keep last 90 days
-    entries = entries[-90:]
-    _save_history(entries)
-    logger.info(f"Saved AI history for {today} ({len(picks)} picks)")
+    # Use date as the unique ID — upsert overwrites same-day entries
+    doc_text = json.dumps(entry, ensure_ascii=False)
+    collection.upsert(
+        ids=[today],
+        documents=[doc_text],
+        metadatas=[{
+            "date": today,
+            "capital": capital,
+            "timeframe": timeframe,
+            "overall_bias": ai_data.get("overall_bias", ""),
+            "breakouts_found": scan_summary.get("breakouts_found", 0),
+            "total_scanned": scan_summary.get("total_scanned", 0),
+        }],
+    )
+    logger.info(f"Saved AI history to ChromaDB for {today} ({len(picks)} picks)")
 
 
 def get_history() -> list:
     """Return all history entries, newest first."""
-    entries = _load_history()
-    entries.reverse()
-    return entries
+    collection = _get_collection()
+    try:
+        results = collection.get(include=["documents", "metadatas"])
+        entries = []
+        for doc in (results.get("documents") or []):
+            try:
+                entries.append(json.loads(doc))
+            except (json.JSONDecodeError, TypeError):
+                continue
+        # Sort newest first
+        entries.sort(key=lambda e: e.get("date", ""), reverse=True)
+        return entries
+    except Exception as e:
+        logger.error(f"ChromaDB get_history error: {e}")
+        return []
 
 
 def get_history_tickers() -> list:
     """Return unique tickers from all history entries for performance lookup."""
-    entries = _load_history()
+    entries = get_history()
     tickers = set()
     for e in entries:
         for p in e.get("picks", []):
