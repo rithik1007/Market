@@ -69,37 +69,7 @@
 
         <!-- TODAY TAB -->
         <div class="tab-content active" id="todayTab">
-        <!-- Stats -->
-        <div class="stats-bar" id="statsBar" style="display:none;">
-            <div class="stat-card">
-                <div class="stat-value" id="totalScanned">--</div>
-                <div class="stat-label">Scanned</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-value text-green" id="breakoutsFound">--</div>
-                <div class="stat-label">Breakouts</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-value" id="niftyStatus">--</div>
-                <div class="stat-label">Nifty 50</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-value" id="bankNiftyStatus">--</div>
-                <div class="stat-label">Bank Nifty</div>
-            </div>
-            <div class="stat-card" id="oiCard" style="display:none;">
-                <div class="stat-value" id="oiPCR">--</div>
-                <div class="stat-label">Nifty PCR (OI)</div>
-            </div>
-            <div class="stat-card" id="oiSupportCard" style="display:none;">
-                <div class="stat-value text-green" id="oiSupport">--</div>
-                <div class="stat-label">OI Support</div>
-            </div>
-            <div class="stat-card" id="oiResistCard" style="display:none;">
-                <div class="stat-value text-red" id="oiResist">--</div>
-                <div class="stat-label">OI Resistance</div>
-            </div>
-        </div>
+
 
         <!-- AI Analysis Panel -->
         <div class="section ai-section" id="aiSection" style="display:none;">
@@ -124,18 +94,7 @@
             <div class="alerts-container" id="alertsContainer"></div>
         </div>
 
-        <!-- Market Sentiment -->
-        <div class="section" id="sentimentSection" style="display:none;">
-            <h2 class="section-title">Index Sentiment (Technical)</h2>
-            <div class="table-wrapper">
-                <table class="data-table">
-                    <thead>
-                        <tr><th>Index</th><th>Close</th><th>Change %</th><th>Sentiment</th><th>&gt;20 DMA</th><th>&gt;50 DMA</th></tr>
-                    </thead>
-                    <tbody id="sentimentBody"></tbody>
-                </table>
-            </div>
-        </div>
+
 
         <!-- Top Picks -->
         <div class="section" id="topPicksSection" style="display:none;">
@@ -143,51 +102,7 @@
             <div class="picks-grid" id="topPicksGrid"></div>
         </div>
 
-        <!-- Safe & Aggressive -->
-        <div class="two-col" id="pickCategories" style="display:none;">
-            <div class="section">
-                <h2 class="section-title">Safest Breakout Trades</h2>
-                <div class="mini-picks" id="safePicks"></div>
-            </div>
-            <div class="section">
-                <h2 class="section-title">Aggressive Momentum Trades</h2>
-                <div class="mini-picks" id="aggressivePicks"></div>
-            </div>
-        </div>
 
-        <!-- Avoid -->
-        <div class="section" id="avoidSection" style="display:none;">
-            <h2 class="section-title">Stocks to Avoid</h2>
-            <div class="avoid-list" id="avoidList"></div>
-        </div>
-
-        <!-- Sector Rotation -->
-        <div class="section" id="sectorSection" style="display:none;">
-            <h2 class="section-title">Sector Rotation</h2>
-            <div class="table-wrapper">
-                <table class="data-table">
-                    <thead><tr><th>Sector</th><th>5D Avg Return</th><th>Stocks</th><th>Momentum</th></tr></thead>
-                    <tbody id="sectorBody"></tbody>
-                </table>
-            </div>
-        </div>
-
-        <!-- Full Table -->
-        <div class="section" id="fullTableSection" style="display:none;">
-            <h2 class="section-title">All Breakout Candidates</h2>
-            <div class="table-wrapper">
-                <table class="data-table">
-                    <thead>
-                        <tr>
-                            <th>Ticker</th><th>Sector</th><th>CMP</th><th>Chg%</th>
-                            <th>Pattern</th><th>Entry</th><th>SL</th><th>T1</th><th>T2</th>
-                            <th>R:R</th><th>RSI</th><th>Vol</th><th>Score</th><th>Conviction</th>
-                        </tr>
-                    </thead>
-                    <tbody id="fullTableBody"></tbody>
-                </table>
-            </div>
-        </div>
 
         <!-- Empty State -->
         <div class="empty-state" id="emptyState">
@@ -327,37 +242,10 @@
         document.getElementById('timestamp').textContent = d.timestamp;
         document.getElementById('statusText').textContent = 'Scan Complete';
         document.getElementById('marketStatus').classList.add('active');
-        document.getElementById('totalScanned').textContent = d.total_scanned;
-        document.getElementById('breakoutsFound').textContent = d.breakouts_found;
-
-        // Index
-        const nifty = (d.index_sentiment||[]).find(i => i.index === 'NIFTY 50');
-        const bn = (d.index_sentiment||[]).find(i => i.index === 'BANK NIFTY');
-        if(nifty) setIndex('niftyStatus', nifty);
-        if(bn) setIndex('bankNiftyStatus', bn);
-
-        // OI sentiment (hard data — real PCR from NSE option chain)
-        if(d.oi_sentiment) {
-            const oi = d.oi_sentiment;
-            show('oiCard'); show('oiSupportCard'); show('oiResistCard');
-            const oiEl = document.getElementById('oiPCR');
-            oiEl.textContent = `${oi.pcr} — ${oi.sentiment}`;
-            oiEl.className = 'stat-value ' + (oi.pcr > 1 ? 'text-green' : oi.pcr < 0.7 ? 'text-red' : '');
-            document.getElementById('oiSupport').textContent = '₹' + oi.support_strike;
-            document.getElementById('oiResist').textContent = '₹' + oi.resistance_strike;
-        }
-
         renderAlerts(d.caution_alerts);
-        renderSentiment(d.index_sentiment||[]);
         renderPicks(d.top_picks);
-        renderMini('safePicks', d.safe_picks);
-        renderMini('aggressivePicks', d.aggressive_picks);
-        renderAvoid(d.avoid_stocks);
-        renderSectors(d.sector_analysis);
-        renderFull(d.all_candidates);
 
-        ['statsBar','alertsSection','sentimentSection','topPicksSection',
-         'pickCategories','avoidSection','sectorSection','fullTableSection'].forEach(show);
+        ['alertsSection','topPicksSection'].forEach(show);
     }
 
     function setIndex(id, idx) {
