@@ -1,42 +1,42 @@
 """
-History Module — Persist daily AI recommendations using ChromaDB.
+History Module — Persist daily AI recommendations using SQLite.
 Tracks picks over time so users can review past performance.
-Data survives restarts via ChromaDB's persistent storage.
+Data survives restarts via SQLite's persistent file storage.
 """
 
 import os
 import json
+import sqlite3
 import logging
 from datetime import datetime, date
 from typing import Optional
 
-import chromadb
-
 logger = logging.getLogger(__name__)
 
-CHROMA_DIR = os.path.join(os.path.dirname(__file__), "chroma_store")
-COLLECTION_NAME = "ai_recommendations"
+DB_FILE = os.path.join(os.path.dirname(__file__), "history.db")
 
-_client = None
-_collection = None
+_conn = None
 
 
-def _get_collection():
-    """Lazy-init ChromaDB persistent client and collection."""
-    global _client, _collection
-    if _collection is None:
-        _client = chromadb.PersistentClient(path=CHROMA_DIR)
-        _collection = _client.get_or_create_collection(
-            name=COLLECTION_NAME,
-            metadata={"hnsw:space": "cosine"},
-        )
-    return _collection
+def _get_conn():
+    """Lazy-init SQLite connection and ensure table exists."""
+    global _conn
+    if _conn is None:
+        _conn = sqlite3.connect(DB_FILE, check_same_thread=False)
+        _conn.execute("""
+            CREATE TABLE IF NOT EXISTS ai_history (
+                date TEXT PRIMARY KEY,
+                data TEXT NOT NULL
+            )
+        """)
+        _conn.commit()
+    return _conn
 
 
 def save_ai_result(ai_data: dict, capital: int, scan_summary: dict, timeframe: str = "Intraday"):
-    """Save an AI analysis result to ChromaDB. One entry per day (upserts same day)."""
+    """Save an AI analysis result to SQLite. One entry per day (upserts same day)."""
     today = date.today().isoformat()
-    collection = _get_collection()
+    conn = _get_conn()
 
     # Extract picks from AI data
     picks = []
@@ -81,39 +81,31 @@ def save_ai_result(ai_data: dict, capital: int, scan_summary: dict, timeframe: s
         "total_scanned": scan_summary.get("total_scanned", 0),
     }
 
-    # Use date as the unique ID — upsert overwrites same-day entries
     doc_text = json.dumps(entry, ensure_ascii=False)
-    collection.upsert(
-        ids=[today],
-        documents=[doc_text],
-        metadatas=[{
-            "date": today,
-            "capital": capital,
-            "timeframe": timeframe,
-            "overall_bias": ai_data.get("overall_bias", ""),
-            "breakouts_found": scan_summary.get("breakouts_found", 0),
-            "total_scanned": scan_summary.get("total_scanned", 0),
-        }],
+    conn.execute(
+        "INSERT OR REPLACE INTO ai_history (date, data) VALUES (?, ?)",
+        (today, doc_text),
     )
-    logger.info(f"Saved AI history to ChromaDB for {today} ({len(picks)} picks)")
+    conn.commit()
+    logger.info(f"Saved AI history to SQLite for {today} ({len(picks)} picks)")
 
 
 def get_history() -> list:
     """Return all history entries, newest first."""
-    collection = _get_collection()
+    conn = _get_conn()
     try:
-        results = collection.get(include=["documents", "metadatas"])
+        rows = conn.execute(
+            "SELECT data FROM ai_history ORDER BY date DESC"
+        ).fetchall()
         entries = []
-        for doc in (results.get("documents") or []):
+        for (doc,) in rows:
             try:
                 entries.append(json.loads(doc))
             except (json.JSONDecodeError, TypeError):
                 continue
-        # Sort newest first
-        entries.sort(key=lambda e: e.get("date", ""), reverse=True)
         return entries
     except Exception as e:
-        logger.error(f"ChromaDB get_history error: {e}")
+        logger.error(f"SQLite get_history error: {e}")
         return []
 
 

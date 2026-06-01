@@ -3,4 +3,4 @@ __pycache__/
 .env
 *.log
 history.json
-chroma_store/
+history.db
