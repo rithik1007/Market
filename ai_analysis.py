@@ -39,9 +39,9 @@ def _get_deployment():
 
 def _get_temperature():
     try:
-        return float(os.getenv("LLM_TEMPERATURE", "0.7"))
+        return float(os.getenv("LLM_TEMPERATURE", "0.4"))
     except ValueError:
-        return 0.7
+        return 0.4
 
 
 def _call_llm(system_prompt: str, user_prompt: str, max_tokens: int = 1500) -> Optional[str]:
@@ -283,12 +283,29 @@ def _parse_ai_response(raw: str) -> Optional[dict]:
     """Parse JSON from LLM response, stripping markdown fences if present."""
     try:
         cleaned = raw.strip()
+        # Strip markdown code fences
         if cleaned.startswith("```"):
             cleaned = cleaned.split("\n", 1)[1]
         if cleaned.endswith("```"):
             cleaned = cleaned.rsplit("```", 1)[0]
         cleaned = cleaned.strip()
-        return json.loads(cleaned)
+
+        # Try direct JSON parse
+        try:
+            return json.loads(cleaned)
+        except json.JSONDecodeError:
+            pass
+
+        # Try extracting JSON object from mixed content
+        import re
+        json_match = re.search(r'\{[\s\S]*\}', cleaned)
+        if json_match:
+            return json.loads(json_match.group())
+
+        logger.error(f"AI response was not valid JSON: {raw[:200]}")
+        return {"market_brief": raw, "trade_plans": [], "watchlist": [],
+                "risk_warning": "", "overall_bias": "NEUTRAL",
+                "portfolio_plan": None, "best_pick_summary": ""}
     except json.JSONDecodeError:
         logger.error(f"AI response was not valid JSON: {raw[:200]}")
         return {"market_brief": raw, "trade_plans": [], "watchlist": [],

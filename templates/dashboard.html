@@ -6,6 +6,7 @@
     <title>NSE Breakout Conviction Engine</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
 </head>
 <body>
     <header class="header">
@@ -14,7 +15,7 @@
                 <span class="logo-icon">📊</span>
                 <div>
                     <h1>NSE Breakout Scanner</h1>
-                    <p class="subtitle">Conviction Engine — Hard Data Only</p>
+                    <p class="subtitle">Enterprise Conviction Engine</p>
                 </div>
             </div>
         </div>
@@ -47,31 +48,40 @@
             <button class="btn btn-ai" id="aiBtn" onclick="runAI()" style="display:none;">
                 <span class="btn-icon">🤖</span> AI Analysis
             </button>
+            <div class="export-dropdown" id="exportDropdown" style="display:none;">
+                <button class="btn btn-secondary" onclick="toggleExportMenu()">
+                    <span class="btn-icon">📥</span> Export
+                </button>
+                <div class="export-menu" id="exportMenu" style="display:none;">
+                    <a onclick="exportCSV('scan')">📊 Scan Results (CSV)</a>
+                    <a onclick="exportCSV('ai')">🤖 AI Picks (CSV)</a>
+                    <a onclick="exportCSV('performance')">📈 Performance (CSV)</a>
+                    <a onclick="exportReport()">📄 Full Report (HTML/PDF)</a>
+                </div>
+            </div>
         </div>
     </header>
 
     <div class="loading-overlay" id="loadingOverlay">
         <div class="loader">
             <div class="spinner"></div>
-            <p>Scanning 150+ NSE stocks...</p>
-            <p class="loader-sub">Computing breakout patterns, conviction scores, fake breakout detection</p>
+            <p id="loadingText">Scanning 150+ NSE stocks...</p>
+            <p class="loader-sub" id="loadingSub">Computing breakout patterns, conviction scores, fake breakout detection</p>
         </div>
     </div>
 
     <main class="main">
-        <!-- Tab Navigation -->
         <div class="tab-nav">
             <button class="tab-btn active" onclick="switchTab('today')" id="tabToday">📊 Today's Analysis</button>
             <button class="tab-btn" onclick="switchTab('aiHistory')" id="tabAiHistory">🤖 AI Recommendations</button>
-            <button class="tab-btn" onclick="switchTab('history')" id="tabHistory">📅 Past Picks</button>
+            <button class="tab-btn" onclick="switchTab('performance')" id="tabPerformance">📈 Performance</button>
+            <button class="tab-btn" onclick="switchTab('watchlists')" id="tabWatchlists">⭐ Watchlists</button>
             <button class="tab-btn" onclick="switchTab('analyzer')" id="tabAnalyzer">🔎 Analyze Stock</button>
+            <button class="tab-btn" onclick="switchTab('history')" id="tabHistory">📅 Past Picks</button>
         </div>
 
         <!-- TODAY TAB -->
         <div class="tab-content active" id="todayTab">
-
-
-        <!-- AI Analysis Panel -->
         <div class="section ai-section" id="aiSection" style="display:none;">
             <div class="ai-header">
                 <h2 class="section-title">🤖 AI Trade Advisor</h2>
@@ -80,6 +90,7 @@
             <div class="ai-brief" id="aiBrief"></div>
             <div class="ai-best" id="aiBest"></div>
             <div class="ai-portfolio" id="aiPortfolio"></div>
+            <div class="risk-panel" id="riskPanel" style="display:none;"></div>
             <div class="ai-risk" id="aiRisk"></div>
             <div class="ai-reentry" id="aiReentry"></div>
             <h3 class="ai-plans-title" id="aiPlansTitle" style="display:none;">Trade Plans — Ranked by Priority</h3>
@@ -87,84 +98,75 @@
             <h3 class="ai-plans-title" id="aiWatchTitle" style="display:none;">📋 Watchlist — Stocks to Monitor</h3>
             <div class="ai-watchlist" id="aiWatchlist"></div>
         </div>
-
-        <!-- Caution Alerts -->
         <div class="section alerts-section" id="alertsSection" style="display:none;">
             <h2 class="section-title">⚡ Caution Alerts</h2>
             <div class="alerts-container" id="alertsContainer"></div>
         </div>
-
-
-
-        <!-- Top Picks -->
         <div class="section" id="topPicksSection" style="display:none;">
             <h2 class="section-title">Top Breakout Picks — Ranked by Conviction</h2>
             <div class="picks-grid" id="topPicksGrid"></div>
         </div>
-
-
-
-        <!-- Empty State -->
         <div class="empty-state" id="emptyState">
             <div class="empty-icon">📊</div>
             <h2>NSE Breakout Conviction Engine</h2>
-            <p>Hard data. Technical proof. No noise.</p>
+            <p>Enterprise-grade stock analysis. Hard data. Technical proof. No noise.</p>
             <ul class="feature-list">
-                <li>6 breakout patterns with volume confirmation</li>
-                <li>Conviction scoring: Technical + Institutional + Multi-TF + Relative Strength</li>
-                <li>Fake breakout detection with confidence %</li>
-                <li>Operator-driven move detection</li>
-                <li>OI-derived support/resistance from NSE option chain</li>
-                <li>Strict filters: no penny stocks, no low liquidity, R:R &ge; 2:1</li>
+                <li>🔍 6 breakout patterns with volume confirmation</li>
+                <li>🧠 AI-powered trade recommendations with exact entry/exit</li>
+                <li>📊 Interactive charts with TradingView</li>
+                <li>📈 Performance tracking — win rate, Sharpe ratio, drawdown</li>
+                <li>🛡️ Portfolio risk analysis — correlation, VaR, sector concentration</li>
+                <li>⭐ Custom watchlists with price alerts</li>
+                <li>📥 Export reports to CSV & PDF</li>
+                <li>🔔 Email & Telegram alert notifications</li>
             </ul>
-            <button class="btn btn-primary btn-lg" onclick="runScan()">
-                <span class="btn-icon">🔍</span> Run Scan
-            </button>
+            <button class="btn btn-primary btn-lg" onclick="runScan()"><span class="btn-icon">🔍</span> Run Scan</button>
+            <p class="shortcut-hint">Keyboard: <kbd>S</kbd> = Scan, <kbd>A</kbd> = AI, <kbd>1-6</kbd> = Switch tabs, <kbd>Esc</kbd> = Close</p>
         </div>
-        </div><!-- end todayTab -->
+        </div>
 
         <!-- AI RECOMMENDATIONS TAB -->
         <div class="tab-content" id="aiHistoryTab">
             <div class="ai-history-header-bar">
                 <h2 class="section-title">🤖 AI Recommendation Tracker</h2>
-                <p class="ai-history-subtitle">Track AI predictions vs actual outcomes — see if AI was right</p>
+                <p class="ai-history-subtitle">Track AI predictions vs actual outcomes</p>
                 <div class="ai-history-controls">
-                    <button class="btn btn-secondary" onclick="loadAiHistory()">
-                        <span class="btn-icon">🔄</span> Refresh
-                    </button>
+                    <button class="btn btn-secondary" onclick="loadAiHistory()"><span class="btn-icon">🔄</span> Refresh</button>
                     <div class="ai-history-stats" id="aiHistoryStats"></div>
                 </div>
             </div>
-            <div class="ai-history-loading" id="aiHistoryLoading" style="display:none;">
-                <div class="spinner" style="width:32px;height:32px;"></div>
-                <p>Loading AI recommendations...</p>
-            </div>
-            <div class="ai-history-empty" id="aiHistoryEmpty" style="display:none;">
-                <div class="empty-icon">🤖</div>
-                <h3>No AI Recommendations Yet</h3>
-                <p>Run a scan and AI analysis to start tracking recommendations here.</p>
-            </div>
+            <div class="ai-history-loading" id="aiHistoryLoading" style="display:none;"><div class="spinner" style="width:32px;height:32px;"></div><p>Loading...</p></div>
+            <div class="ai-history-empty" id="aiHistoryEmpty" style="display:none;"><div class="empty-icon">🤖</div><h3>No AI Recommendations Yet</h3><p>Run a scan and AI analysis to start tracking.</p></div>
             <div id="aiHistoryEntries"></div>
         </div>
 
-        <!-- HISTORY TAB -->
-        <div class="tab-content" id="historyTab">
-            <div class="history-controls">
-                <button class="btn btn-secondary" onclick="loadHistory()">
-                    <span class="btn-icon">🔄</span> Refresh History
-                </button>
-                <span class="history-count" id="historyCount"></span>
+        <!-- PERFORMANCE TAB -->
+        <div class="tab-content" id="performanceTab">
+            <div class="section">
+                <div class="perf-header-row">
+                    <h2 class="section-title">📈 Performance Dashboard</h2>
+                    <div class="perf-controls">
+                        <button class="btn btn-secondary" onclick="loadPerformance()"><span class="btn-icon">🔄</span> Refresh</button>
+                        <button class="btn btn-secondary" onclick="exportCSV('performance')"><span class="btn-icon">📥</span> Export</button>
+                    </div>
+                </div>
             </div>
-            <div class="history-loading" id="historyLoading" style="display:none;">
-                <div class="spinner" style="width:32px;height:32px;"></div>
-                <p>Loading past picks...</p>
+            <div class="perf-loading" id="perfLoading" style="display:none;"><div class="spinner" style="width:32px;height:32px;"></div><p>Calculating performance...</p></div>
+            <div id="perfContent"></div>
+        </div>
+
+        <!-- WATCHLISTS TAB -->
+        <div class="tab-content" id="watchlistsTab">
+            <div class="section">
+                <div class="wl-header-row">
+                    <h2 class="section-title">⭐ Watchlists</h2>
+                    <div class="wl-controls">
+                        <input type="text" id="newWlName" class="wl-input" placeholder="New watchlist name...">
+                        <button class="btn btn-primary" onclick="createWatchlist()"><span class="btn-icon">+</span> Create</button>
+                    </div>
+                </div>
             </div>
-            <div class="history-empty" id="historyEmpty" style="display:none;">
-                <div class="empty-icon">📅</div>
-                <h3>No History Yet</h3>
-                <p>Run a scan and AI analysis to start tracking your daily picks here.</p>
-            </div>
-            <div id="historyEntries"></div>
+            <div id="watchlistsContent"></div>
         </div>
 
         <!-- ANALYZER TAB -->
@@ -173,18 +175,27 @@
                 <div class="analyzer-input-wrap">
                     <span class="analyzer-icon">🔎</span>
                     <input type="text" id="stockSymbolInput" class="analyzer-input" placeholder="Type stock name — e.g. TATA, RELIANCE, INFY" autocomplete="off">
-                    <button class="btn btn-primary" id="analyzeBtn" onclick="analyzeStock()">
-                        <span class="btn-icon">🤖</span> Analyze
-                    </button>
+                    <button class="btn btn-primary" id="analyzeBtn" onclick="analyzeStock()"><span class="btn-icon">🤖</span> Analyze</button>
                 </div>
                 <div class="search-dropdown" id="searchDropdown"></div>
-                <p class="analyzer-hint">Start typing to see suggestions. Works with 150+ NSE stocks.</p>
+                <p class="analyzer-hint">Start typing to see suggestions. Full NSE coverage via Yahoo Finance.</p>
             </div>
-            <div class="analyzer-loading" id="analyzerLoading" style="display:none;">
-                <div class="spinner" style="width:32px;height:32px;"></div>
-                <p>Fetching data & generating AI analysis...</p>
+            <div class="analyzer-loading" id="analyzerLoading" style="display:none;"><div class="spinner" style="width:32px;height:32px;"></div><p>Fetching data & generating AI analysis...</p></div>
+            <div id="stockChartContainer" style="display:none;">
+                <div class="section"><h3 class="section-title" id="chartTitle">Price Chart</h3><div id="stockChart" style="height:400px;border-radius:8px;overflow:hidden;"></div></div>
             </div>
             <div id="analyzerResult"></div>
+        </div>
+
+        <!-- HISTORY TAB -->
+        <div class="tab-content" id="historyTab">
+            <div class="history-controls">
+                <button class="btn btn-secondary" onclick="loadHistory()"><span class="btn-icon">🔄</span> Refresh History</button>
+                <span class="history-count" id="historyCount"></span>
+            </div>
+            <div class="history-loading" id="historyLoading" style="display:none;"><div class="spinner" style="width:32px;height:32px;"></div><p>Loading past picks...</p></div>
+            <div class="history-empty" id="historyEmpty" style="display:none;"><div class="empty-icon">📅</div><h3>No History Yet</h3><p>Run a scan and AI analysis to start tracking.</p></div>
+            <div id="historyEntries"></div>
         </div>
     </main>
 
@@ -196,11 +207,23 @@
         </div>
     </div>
 
+    <!-- Chart Modal -->
+    <div class="modal-overlay" id="chartModalOverlay" onclick="closeChartModal()" style="display:none;">
+        <div class="modal modal-wide" onclick="event.stopPropagation()">
+            <button class="modal-close" onclick="closeChartModal()">&times;</button>
+            <h2 id="chartModalTitle" style="margin-bottom:16px;"></h2>
+            <div id="chartModalContainer" style="height:450px;border-radius:8px;overflow:hidden;"></div>
+        </div>
+    </div>
+
     <script>
     let scanData = null;
+    let lastAiData = null;
+    let stockChartInstance = null;
+    let modalChartInstance = null;
 
     async function runScan() {
-        showLoading(true);
+        showLoading(true, 'Scanning 150+ NSE stocks...', 'Computing breakout patterns, conviction scores, fake breakout detection');
         try {
             const r = await fetch('/api/scan');
             const j = await r.json();
@@ -210,15 +233,15 @@
                 document.getElementById('aiBtn').style.display = '';
                 document.getElementById('capitalWrap').style.display = '';
                 document.getElementById('timeframeWrap').style.display = '';
-                runAI();  // auto-trigger AI trade suggestions
-            }
-            else alert('Scan failed: ' + (j.message || ''));
-        } catch(e) { alert('Error: ' + e.message); }
+                document.getElementById('exportDropdown').style.display = '';
+                runAI();
+            } else showError('Scan failed: ' + (j.message || ''));
+        } catch(e) { showError('Error: ' + e.message); }
         showLoading(false);
     }
 
     async function refreshScan() {
-        showLoading(true);
+        showLoading(true, 'Refreshing data...', 'Clearing cache and re-scanning');
         try {
             const r = await fetch('/api/refresh', {method:'POST'});
             const j = await r.json();
@@ -228,14 +251,34 @@
                 document.getElementById('aiBtn').style.display = '';
                 document.getElementById('capitalWrap').style.display = '';
                 document.getElementById('timeframeWrap').style.display = '';
-                runAI();  // auto-trigger AI trade suggestions
-            }
-            else alert('Refresh failed: ' + (j.message || ''));
-        } catch(e) { alert('Error: ' + e.message); }
+                document.getElementById('exportDropdown').style.display = '';
+                runAI();
+            } else showError('Refresh failed: ' + (j.message || ''));
+        } catch(e) { showError('Error: ' + e.message); }
         showLoading(false);
     }
 
-    function showLoading(s) { document.getElementById('loadingOverlay').style.display = s ? 'flex' : 'none'; }
+    function showLoading(s, text, sub) {
+        document.getElementById('loadingOverlay').style.display = s ? 'flex' : 'none';
+        if (text) document.getElementById('loadingText').textContent = text;
+        if (sub) document.getElementById('loadingSub').textContent = sub;
+    }
+
+    function showError(msg) {
+        const toast = document.createElement('div');
+        toast.className = 'toast toast-error';
+        toast.innerHTML = `<span>❌ ${msg}</span><button onclick="this.parentElement.remove()">✕</button>`;
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 6000);
+    }
+
+    function showSuccess(msg) {
+        const toast = document.createElement('div');
+        toast.className = 'toast toast-success';
+        toast.innerHTML = `<span>✅ ${msg}</span><button onclick="this.parentElement.remove()">✕</button>`;
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 4000);
+    }
 
     function render(d) {
         document.getElementById('emptyState').style.display = 'none';
@@ -244,34 +287,12 @@
         document.getElementById('marketStatus').classList.add('active');
         renderAlerts(d.caution_alerts);
         renderPicks(d.top_picks);
-
         ['alertsSection','topPicksSection'].forEach(show);
-    }
-
-    function setIndex(id, idx) {
-        const el = document.getElementById(id);
-        el.textContent = `${idx.close} (${idx.change_pct>0?'+':''}${idx.change_pct}%)`;
-        el.className = 'stat-value ' + (idx.change_pct>=0?'text-green':'text-red');
     }
 
     function renderAlerts(alerts) {
         const c = document.getElementById('alertsContainer');
-        c.innerHTML = (alerts||[]).map(a =>
-            `<div class="alert alert-${a.startsWith('✅')?'success':'warning'}">${a}</div>`
-        ).join('');
-    }
-
-    function renderSentiment(items) {
-        document.getElementById('sentimentBody').innerHTML = items.map(s => `
-            <tr>
-                <td><strong>${s.index}</strong></td>
-                <td>₹${s.close.toLocaleString()}</td>
-                <td class="${s.change_pct>=0?'text-green':'text-red'}">${s.change_pct>0?'+':''}${s.change_pct}%</td>
-                <td><span class="badge badge-${s.sentiment.includes('Bullish')?'green':s.sentiment.includes('Bearish')?'red':'yellow'}">${s.sentiment}</span></td>
-                <td>${b(s.above_20dma)}</td>
-                <td>${b(s.above_50dma)}</td>
-            </tr>
-        `).join('');
+        c.innerHTML = (alerts||[]).map(a => `<div class="alert alert-${a.startsWith('✅')?'success':'warning'}">${a}</div>`).join('');
     }
 
     function renderPicks(picks) {
@@ -281,14 +302,8 @@
             <div class="pick-card" onclick="showDetail(${i})">
                 <div class="pick-header">
                     <div class="pick-rank">#${i+1}</div>
-                    <div>
-                        <div class="pick-ticker">${p.ticker}</div>
-                        <div class="pick-sector">${p.sector}</div>
-                    </div>
-                    <div class="pick-scores">
-                        <div class="conviction-circle cv-${cvColor(p.conviction_score||0)}">${p.conviction_score||0}</div>
-                        <div class="score-sub">conviction</div>
-                    </div>
+                    <div><div class="pick-ticker">${p.ticker}</div><div class="pick-sector">${p.sector}</div></div>
+                    <div class="pick-scores"><div class="conviction-circle cv-${cvColor(p.conviction_score||0)}">${p.conviction_score||0}</div><div class="score-sub">conviction</div></div>
                 </div>
                 <div class="pick-pattern">
                     <span class="pattern-badge">${p.pattern_name}</span>
@@ -297,16 +312,10 @@
                     ${p.institutional&&p.institutional.institutional?'<span class="inst-badge">Institutional</span>':''}
                 </div>
                 <div class="pick-body">
-                    <div class="pick-price">
-                        <span class="price">₹${p.close}</span>
-                        <span class="${p.change_pct>=0?'text-green':'text-red'}">${p.change_pct>0?'+':''}${p.change_pct}%</span>
-                    </div>
+                    <div class="pick-price"><span class="price">₹${p.close}</span><span class="${p.change_pct>=0?'text-green':'text-red'}">${p.change_pct>0?'+':''}${p.change_pct}%</span></div>
                     <span class="badge badge-${trendCl(p.trend)}">${p.trend}</span>
                 </div>
-                <div class="conviction-bar-container">
-                    <div class="conviction-bar cv-bg-${cvColor(p.conviction_score||0)}" style="width:${p.conviction_score||0}%"></div>
-                    <span class="conviction-label">${p.conviction_verdict||''}</span>
-                </div>
+                <div class="conviction-bar-container"><div class="conviction-bar cv-bg-${cvColor(p.conviction_score||0)}" style="width:${p.conviction_score||0}%"></div><span class="conviction-label">${p.conviction_verdict||''}</span></div>
                 <div class="pick-levels">
                     <div class="level"><span class="level-label">Entry</span><span class="level-value">${p.trade_levels.entry_zone}</span></div>
                     <div class="level"><span class="level-label">Stop Loss</span><span class="level-value text-red">${p.trade_levels.stop_loss}</span></div>
@@ -314,872 +323,240 @@
                     <div class="level"><span class="level-label">R:R</span><span class="level-value">${p.trade_levels.risk_reward}:1</span></div>
                 </div>
                 <div class="pick-meta">
-                    <span>RSI ${p.rsi}</span>
-                    <span>Vol ${p.volume_ratio}x</span>
-                    <span>${b(p.above_50dma)} 50D</span>
-                    <span>${b(p.above_200dma)} 200D</span>
+                    <span>RSI ${p.rsi}</span><span>Vol ${p.volume_ratio}x</span><span>${b(p.above_50dma)} 50D</span><span>${b(p.above_200dma)} 200D</span>
                     ${p.confirmation?`<span>Conf ${p.confirmation.strength}/10</span>`:''}
                 </div>
-            </div>
-        `).join('');
-    }
-
-    function renderMini(id, picks) {
-        const c = document.getElementById(id);
-        if(!picks||!picks.length){ c.innerHTML='<p class="no-data">None</p>'; return; }
-        c.innerHTML = picks.map(p => `
-            <div class="mini-pick">
-                <div class="mini-header">
-                    <strong>${p.ticker}</strong>
-                    <span class="conviction-mini cv-${cvColor(p.conviction_score||0)}">${p.conviction_score||0}%</span>
+                <div class="pick-actions">
+                    <button class="btn-mini" onclick="event.stopPropagation();showChartModal('${p.ticker}')">📈 Chart</button>
+                    <button class="btn-mini" onclick="event.stopPropagation();quickAnalyze('${p.ticker}')">🤖 Analyze</button>
                 </div>
-                <div class="mini-info">₹${p.close} | <span class="pattern-badge small">${p.pattern_name}</span> | R:R ${p.trade_levels.risk_reward}:1</div>
-                <div class="mini-levels">Entry: ${p.trade_levels.entry_zone} | SL: ${p.trade_levels.stop_loss} | T1: ${p.trade_levels.target_1}</div>
             </div>
         `).join('');
     }
 
-    function renderAvoid(stocks) {
-        const c = document.getElementById('avoidList');
-        if(!stocks||!stocks.length){ c.innerHTML='<p class="no-data">None flagged.</p>'; return; }
-        c.innerHTML = stocks.map(s => `
-            <div class="avoid-item"><span class="avoid-ticker">${s.ticker}</span><span class="avoid-reason">${s.reason}</span></div>
-        `).join('');
-    }
-
-    function renderSectors(sectors) {
-        document.getElementById('sectorBody').innerHTML = (sectors||[]).map(s => `
-            <tr>
-                <td><strong>${s.sector}</strong></td>
-                <td class="${s.avg_5d_return>=0?'text-green':'text-red'}">${s.avg_5d_return>0?'+':''}${s.avg_5d_return}%</td>
-                <td>${s.stocks_analyzed}</td>
-                <td><span class="badge badge-${s.momentum==='Strong'?'green':s.momentum==='Moderate'?'yellow':'red'}">${s.momentum}</span></td>
-            </tr>
-        `).join('');
-    }
-
-    function renderFull(cands) {
-        document.getElementById('fullTableBody').innerHTML = (cands||[]).map(c => `
-            <tr>
-                <td><strong>${c.ticker}</strong></td>
-                <td>${c.sector}</td>
-                <td>₹${c.close}</td>
-                <td class="${c.change_pct>=0?'text-green':'text-red'}">${c.change_pct>0?'+':''}${c.change_pct}%</td>
-                <td><span class="pattern-badge small">${c.pattern_name}</span></td>
-                <td>${c.trade_levels.entry_zone}</td>
-                <td class="text-red">${c.trade_levels.stop_loss}</td>
-                <td class="text-green">${c.trade_levels.target_1}</td>
-                <td class="text-green">${c.trade_levels.target_2}</td>
-                <td>${c.trade_levels.risk_reward}:1</td>
-                <td>${c.rsi}</td>
-                <td>${c.volume_ratio}x</td>
-                <td><span class="score-mini sc-${scColor(c.probability_score)}">${c.probability_score}</span></td>
-                <td><span class="conviction-mini cv-${cvColor(c.conviction_score||0)}">${c.conviction_score||0}%</span></td>
-            </tr>
-        `).join('');
-    }
-
-    // Detail modal
     function showDetail(i) {
         const p = scanData.top_picks[i];
         document.getElementById('modalContent').innerHTML = `
-            <div class="detail-header">
-                <h2>${p.ticker} <span class="pick-sector">${p.sector}</span></h2>
-                <div class="detail-scores">
-                    <div class="conviction-circle cv-${cvColor(p.conviction_score||0)} big">${p.conviction_score||0}%</div>
-                </div>
-            </div>
+            <div class="detail-header"><h2>${p.ticker} <span class="pick-sector">${p.sector}</span></h2><div class="detail-scores"><div class="conviction-circle cv-${cvColor(p.conviction_score||0)} big">${p.conviction_score||0}%</div></div></div>
             <div class="conviction-verdict cv-verdict-${cvColor(p.conviction_score||0)}">${p.conviction_verdict||''}</div>
-
-            ${p.conviction_components?`
-            <div class="detail-section">
-                <h3>Conviction Breakdown</h3>
-                <div class="breakdown-bars">
-                    ${Object.entries(p.conviction_components).map(([k,v])=>`
-                        <div class="breakdown-row">
-                            <span class="breakdown-label">${fmtLabel(k)}</span>
-                            <div class="breakdown-bar-bg"><div class="breakdown-bar-fill" style="width:${v*3.33}%"></div></div>
-                            <span class="breakdown-value">${v}</span>
-                        </div>
-                    `).join('')}
-                </div>
-            </div>`:''}
-
+            ${p.conviction_components?`<div class="detail-section"><h3>Conviction Breakdown</h3><div class="breakdown-bars">${Object.entries(p.conviction_components).map(([k,v])=>`<div class="breakdown-row"><span class="breakdown-label">${fmtLabel(k)}</span><div class="breakdown-bar-bg"><div class="breakdown-bar-fill" style="width:${v*3.33}%"></div></div><span class="breakdown-value">${v}</span></div>`).join('')}</div></div>`:''}
             <div class="detail-grid">
-                <div class="detail-section">
-                    <h3>Price & Trend</h3>
-                    <table class="detail-table">
-                        <tr><td>CMP</td><td><strong>₹${p.close}</strong></td></tr>
-                        <tr><td>Change</td><td class="${p.change_pct>=0?'text-green':'text-red'}">${p.change_pct}%</td></tr>
-                        <tr><td>Trend</td><td><span class="badge badge-${trendCl(p.trend)}">${p.trend}</span></td></tr>
-                        <tr><td>50 DMA</td><td>₹${p.sma_50} ${b(p.above_50dma)}</td></tr>
-                        <tr><td>200 DMA</td><td>₹${p.sma_200} ${b(p.above_200dma)}</td></tr>
-                    </table>
-                </div>
-                <div class="detail-section">
-                    <h3>Trade Setup</h3>
-                    <table class="detail-table">
-                        <tr><td>Pattern</td><td><span class="pattern-badge">${p.pattern_name}</span></td></tr>
-                        <tr><td>Breakout</td><td><strong>${p.trade_levels.breakout_confirmation}</strong></td></tr>
-                        <tr><td>Entry</td><td>${p.trade_levels.entry_zone}</td></tr>
-                        <tr><td>Stop Loss</td><td class="text-red"><strong>${p.trade_levels.stop_loss}</strong></td></tr>
-                        <tr><td>T1 (+5%)</td><td class="text-green">${p.trade_levels.target_1}</td></tr>
-                        <tr><td>T2 (+10%)</td><td class="text-green">${p.trade_levels.target_2}</td></tr>
-                        <tr><td>T3 (+15%)</td><td class="text-green">${p.trade_levels.target_3}</td></tr>
-                        <tr><td>R:R</td><td><strong>${p.trade_levels.risk_reward}:1</strong></td></tr>
-                    </table>
-                </div>
-                <div class="detail-section">
-                    <h3>Technical Proof</h3>
-                    <table class="detail-table">
-                        <tr><td>RSI (14)</td><td>${p.rsi_analysis}</td></tr>
-                        <tr><td>Volume</td><td>${p.volume_analysis}</td></tr>
-                        <tr><td>MACD</td><td>${p.macd_bullish?'Bullish':'Bearish'}</td></tr>
-                        <tr><td>Vol Confirmed</td><td>${b(p.volume_confirmed)}</td></tr>
-                    </table>
-                </div>
-                <div class="detail-section">
-                    <h3>Support & Resistance</h3>
-                    <table class="detail-table">
-                        <tr><td>Resistance</td><td>${(p.support_resistance.resistance||[]).map(r=>'₹'+r).join(' → ')}</td></tr>
-                        <tr><td>Support</td><td>${(p.support_resistance.support||[]).map(s=>'₹'+s).join(' → ')}</td></tr>
-                    </table>
-                </div>
+                <div class="detail-section"><h3>Price & Trend</h3><table class="detail-table"><tr><td>CMP</td><td><strong>₹${p.close}</strong></td></tr><tr><td>Change</td><td class="${p.change_pct>=0?'text-green':'text-red'}">${p.change_pct}%</td></tr><tr><td>Trend</td><td><span class="badge badge-${trendCl(p.trend)}">${p.trend}</span></td></tr><tr><td>50 DMA</td><td>₹${p.sma_50} ${b(p.above_50dma)}</td></tr><tr><td>200 DMA</td><td>₹${p.sma_200} ${b(p.above_200dma)}</td></tr></table></div>
+                <div class="detail-section"><h3>Trade Setup</h3><table class="detail-table"><tr><td>Pattern</td><td><span class="pattern-badge">${p.pattern_name}</span></td></tr><tr><td>Entry</td><td>${p.trade_levels.entry_zone}</td></tr><tr><td>Stop Loss</td><td class="text-red"><strong>${p.trade_levels.stop_loss}</strong></td></tr><tr><td>T1</td><td class="text-green">${p.trade_levels.target_1}</td></tr><tr><td>T2</td><td class="text-green">${p.trade_levels.target_2}</td></tr><tr><td>T3</td><td class="text-green">${p.trade_levels.target_3}</td></tr><tr><td>R:R</td><td><strong>${p.trade_levels.risk_reward}:1</strong></td></tr></table></div>
+                <div class="detail-section"><h3>Technical Proof</h3><table class="detail-table"><tr><td>RSI</td><td>${p.rsi_analysis}</td></tr><tr><td>Volume</td><td>${p.volume_analysis}</td></tr><tr><td>MACD</td><td>${p.macd_bullish?'Bullish':'Bearish'}</td></tr><tr><td>Vol Confirmed</td><td>${b(p.volume_confirmed)}</td></tr></table></div>
+                <div class="detail-section"><h3>S/R Levels</h3><table class="detail-table"><tr><td>Resistance</td><td>${(p.support_resistance.resistance||[]).map(r=>'₹'+r).join(' → ')}</td></tr><tr><td>Support</td><td>${(p.support_resistance.support||[]).map(s=>'₹'+s).join(' → ')}</td></tr></table></div>
             </div>
-
-            ${p.confirmation?`
-            <div class="detail-section">
-                <h3>Multi-TF Confirmation (${p.confirmation.strength}/10)</h3>
-                <div class="confirmation-checks">
-                    ${Object.entries(p.confirmation.checks||{}).filter(([k])=>k!=='total_strength').map(([k,v])=>
-                        `<span class="check-item ${v?'check-pass':'check-fail'}">${v?'✓':'✗'} ${fmtLabel(k)}</span>`
-                    ).join('')}
-                </div>
-            </div>`:''}
-
-            ${p.institutional?`
-            <div class="detail-section">
-                <h3>Institutional Activity (${p.institutional.score}/10)</h3>
-                <ul class="detail-list">${(p.institutional.signals||[]).map(s=>`<li>${s}</li>`).join('')}</ul>
-            </div>`:''}
-
-            <div class="detail-section">
-                <h3>Why This Stock</h3>
-                <ul class="detail-list why">${(p.why_better||[]).map(r=>`<li>${r}</li>`).join('')}</ul>
-            </div>
-
-            <div class="detail-section">
-                <h3>Risk Factors</h3>
-                <ul class="detail-list risk">${(p.risk_factors||[]).map(r=>`<li>${r}</li>`).join('')}</ul>
-            </div>
-
-            ${p.fake_breakout&&p.fake_breakout.is_fake?`
-            <div class="alert alert-warning">
-                <strong>Fake Breakout Risk (${p.fake_breakout.confidence}%)</strong><br>
-                ${(p.fake_breakout.reasons||[]).map(r=>'• '+r).join('<br>')}
-            </div>`:''}
-
-            ${p.operator_risk?`
-            <div class="alert alert-warning">
-                <strong>Operator Risk: ${p.operator_analysis.risk_level}</strong><br>
-                ${(p.operator_analysis.signals||[]).map(s=>'• '+s).join('<br>')}
-            </div>`:''}
+            ${p.confirmation?`<div class="detail-section"><h3>Multi-TF Confirmation (${p.confirmation.strength}/10)</h3><div class="confirmation-checks">${Object.entries(p.confirmation.checks||{}).filter(([k])=>k!=='total_strength').map(([k,v])=>`<span class="check-item ${v?'check-pass':'check-fail'}">${v?'✓':'✗'} ${fmtLabel(k)}</span>`).join('')}</div></div>`:''}
+            ${p.institutional?`<div class="detail-section"><h3>Institutional Activity (${p.institutional.score}/10)</h3><ul class="detail-list">${(p.institutional.signals||[]).map(s=>`<li>${s}</li>`).join('')}</ul></div>`:''}
+            <div class="detail-section"><h3>Why This Stock</h3><ul class="detail-list why">${(p.why_better||[]).map(r=>`<li>${r}</li>`).join('')}</ul></div>
+            <div class="detail-section"><h3>Risk Factors</h3><ul class="detail-list risk">${(p.risk_factors||[]).map(r=>`<li>${r}</li>`).join('')}</ul></div>
+            ${p.fake_breakout&&p.fake_breakout.is_fake?`<div class="alert alert-warning"><strong>Fake Breakout Risk (${p.fake_breakout.confidence}%)</strong><br>${(p.fake_breakout.reasons||[]).map(r=>'• '+r).join('<br>')}</div>`:''}
+            ${p.operator_risk?`<div class="alert alert-warning"><strong>Operator Risk: ${p.operator_analysis.risk_level}</strong><br>${(p.operator_analysis.signals||[]).map(s=>'• '+s).join('<br>')}</div>`:''}
         `;
         document.getElementById('modalOverlay').style.display = 'flex';
     }
-
     function closeModal() { document.getElementById('modalOverlay').style.display = 'none'; }
+
+    // ── Charts ──
+    async function loadChart(symbol, containerId, height) {
+        try {
+            const r = await fetch(`/api/chart-data/${symbol}?days=180`);
+            const j = await r.json();
+            if (j.status !== 'success') return null;
+            const container = document.getElementById(containerId);
+            container.innerHTML = '';
+            const chart = LightweightCharts.createChart(container, {
+                width: container.clientWidth, height: height || 400,
+                layout: { background: { color: '#0a0e17' }, textColor: '#94a3b8' },
+                grid: { vertLines: { color: '#1e293b' }, horzLines: { color: '#1e293b' } },
+                crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+                rightPriceScale: { borderColor: '#1e293b' },
+                timeScale: { borderColor: '#1e293b', timeVisible: false },
+            });
+            const cs = chart.addCandlestickSeries({ upColor: '#10b981', downColor: '#ef4444', borderUpColor: '#10b981', borderDownColor: '#ef4444', wickUpColor: '#10b981', wickDownColor: '#ef4444' });
+            cs.setData(j.data.candles);
+            const vs = chart.addHistogramSeries({ priceFormat: { type: 'volume' }, priceScaleId: '' });
+            vs.priceScale().applyOptions({ scaleMargins: { top: 0.8, bottom: 0 } });
+            vs.setData(j.data.volumes);
+            chart.timeScale().fitContent();
+            new ResizeObserver(() => chart.applyOptions({ width: container.clientWidth })).observe(container);
+            return chart;
+        } catch(e) { console.error('Chart error:', e); return null; }
+    }
+
+    async function showChartModal(symbol) {
+        document.getElementById('chartModalTitle').textContent = `${symbol} — Price Chart`;
+        document.getElementById('chartModalOverlay').style.display = 'flex';
+        if (modalChartInstance) { modalChartInstance.remove(); modalChartInstance = null; }
+        modalChartInstance = await loadChart(symbol, 'chartModalContainer', 450);
+    }
+    function closeChartModal() {
+        document.getElementById('chartModalOverlay').style.display = 'none';
+        if (modalChartInstance) { modalChartInstance.remove(); modalChartInstance = null; }
+    }
+    function quickAnalyze(ticker) { document.getElementById('stockSymbolInput').value = ticker; switchTab('analyzer'); analyzeStock(); }
 
     // Helpers
     function b(v) { return v ? '✓' : '✗'; }
     function show(id) { document.getElementById(id).style.display = ''; }
     function trendCl(t) { return t&&(t.includes('Up')||t.includes('Bullish'))?'green':t&&t.includes('Down')?'red':'yellow'; }
-    function scColor(s) { return s>=7?'green':s>=5?'yellow':'red'; }
     function cvColor(c) { return c>=70?'green':c>=50?'yellow':'red'; }
     function fmtLabel(k) { return k.replace(/_/g,' ').replace(/\b\w/g,l=>l.toUpperCase()); }
 
-    // AI Analysis
+    // ── AI Analysis ──
     async function runAI() {
         const btn = document.getElementById('aiBtn');
-        const sec = document.getElementById('aiSection');
         btn.disabled = true; btn.innerHTML = '<span class="btn-icon">⏳</span> Analyzing...';
-        // Show loading state in AI section immediately
-        sec.style.display = '';
-        document.getElementById('aiBrief').innerHTML = '<p class="ai-loading">🤖 AI is analyzing your scan results — generating trade plans...</p>';
-        document.getElementById('aiBest').innerHTML = '';
-        document.getElementById('aiPortfolio').innerHTML = '';
-        document.getElementById('aiRisk').innerHTML = '';
-        document.getElementById('aiPlans').innerHTML = '';
-        document.getElementById('aiPlansTitle').style.display = 'none';
-        document.getElementById('aiReentry').innerHTML = '';
-        document.getElementById('aiWatchlist').innerHTML = '';
-        document.getElementById('aiWatchTitle').style.display = 'none';
+        const sec = document.getElementById('aiSection'); sec.style.display = '';
+        document.getElementById('aiBrief').innerHTML = '<p class="ai-loading">🤖 AI is analyzing — generating trade plans...</p>';
+        ['aiBest','aiPortfolio','aiRisk','aiPlans','aiReentry','aiWatchlist'].forEach(id => document.getElementById(id).innerHTML = '');
+        ['aiPlansTitle','aiWatchTitle'].forEach(id => document.getElementById(id).style.display = 'none');
+        document.getElementById('riskPanel').style.display = 'none';
         document.getElementById('aiBias').textContent = '...';
-        document.getElementById('aiBias').className = 'ai-badge ai-bias-neutral';
-        // Scroll to top so user sees AI section
         window.scrollTo({top: 0, behavior: 'smooth'});
         try {
             const capital = document.getElementById('capitalInput').value || '100000';
             const timeframe = document.getElementById('timeframeSelect').value || 'Intraday';
             const r = await fetch('/api/ai-analysis?capital=' + encodeURIComponent(capital) + '&timeframe=' + encodeURIComponent(timeframe));
             const j = await r.json();
-            if (j.status === 'success') renderAI(j.data);
-            else document.getElementById('aiBrief').innerHTML = '<p class="ai-brief-text">AI analysis unavailable. Use the data below to make your decisions.</p>';
-        } catch(e) { alert('AI error: ' + e.message); }
+            if (j.status === 'success') { lastAiData = j.data; renderAI(j.data); runRiskAnalysis(j.data, parseInt(capital)); }
+            else document.getElementById('aiBrief').innerHTML = '<p class="ai-brief-text">AI analysis unavailable.</p>';
+        } catch(e) { showError('AI error: ' + e.message); }
         btn.disabled = false; btn.innerHTML = '<span class="btn-icon">🤖</span> AI Analysis';
     }
 
     function renderAI(ai) {
-        const sec = document.getElementById('aiSection');
-        sec.style.display = '';
-
-        // Bias badge
+        document.getElementById('aiSection').style.display = '';
         const bias = ai.overall_bias || 'NEUTRAL';
         const biasEl = document.getElementById('aiBias');
-        biasEl.textContent = bias;
-        biasEl.className = 'ai-badge ai-bias-' + bias.toLowerCase();
-
-        // Market brief
-        document.getElementById('aiBrief').innerHTML =
-            `<p class="ai-brief-text">${ai.market_brief || ''}</p>`;
-
-        // Best pick callout
-        if (ai.best_pick_summary) {
-            document.getElementById('aiBest').innerHTML =
-                `<div class="ai-best-box">💡 <strong>Top Pick:</strong> ${ai.best_pick_summary}</div>`;
-        }
-
-        // Portfolio plan
+        biasEl.textContent = bias; biasEl.className = 'ai-badge ai-bias-' + bias.toLowerCase();
+        document.getElementById('aiBrief').innerHTML = `<p class="ai-brief-text">${ai.market_brief || ''}</p>`;
+        if (ai.best_pick_summary) document.getElementById('aiBest').innerHTML = `<div class="ai-best-box">💡 <strong>Top Pick:</strong> ${ai.best_pick_summary}</div>`;
         const pp = ai.portfolio_plan;
-        if (pp) {
-            document.getElementById('aiPortfolio').innerHTML = `
-                <div class="ai-portfolio-grid">
-                    <div class="ai-pf-card">
-                        <div class="ai-pf-value">${pp.stocks_to_trade}</div>
-                        <div class="ai-pf-label">Stocks to Trade</div>
-                    </div>
-                    <div class="ai-pf-card">
-                        <div class="ai-pf-value text-green">${pp.capital_to_deploy}</div>
-                        <div class="ai-pf-label">Deploy (${pp.deploy_pct}%)</div>
-                    </div>
-                    <div class="ai-pf-card">
-                        <div class="ai-pf-value text-yellow">${pp.capital_in_cash}</div>
-                        <div class="ai-pf-label">Keep in Cash</div>
-                    </div>
-                    <div class="ai-pf-card ai-pf-note">
-                        <div class="ai-pf-label">${pp.strategy_note}</div>
-                    </div>
-                </div>`;
-        }
-
-        // Risk warning
-        const risk = ai.risk_warning || '';
-        document.getElementById('aiRisk').innerHTML = risk
-            ? `<div class="alert alert-warning">${risk}</div>` : '';
-
-        // Trade plans
+        if (pp) document.getElementById('aiPortfolio').innerHTML = `<div class="ai-portfolio-grid"><div class="ai-pf-card"><div class="ai-pf-value">${pp.stocks_to_trade}</div><div class="ai-pf-label">Stocks</div></div><div class="ai-pf-card"><div class="ai-pf-value text-green">${pp.capital_to_deploy}</div><div class="ai-pf-label">Deploy (${pp.deploy_pct}%)</div></div><div class="ai-pf-card"><div class="ai-pf-value text-yellow">${pp.capital_in_cash}</div><div class="ai-pf-label">Cash</div></div><div class="ai-pf-card ai-pf-note"><div class="ai-pf-label">${pp.strategy_note}</div></div></div>`;
+        document.getElementById('aiRisk').innerHTML = ai.risk_warning ? `<div class="alert alert-warning">${ai.risk_warning}</div>` : '';
         const plans = ai.trade_plans || [];
         if (plans.length) {
             document.getElementById('aiPlansTitle').style.display = '';
-            document.getElementById('aiPlans').innerHTML = plans.map(p => `
-                <div class="trade-plan tp-${(p.action||'').toLowerCase()}">
-                    <div class="tp-header">
-                        <div class="tp-rank">#${p.rank}</div>
-                        <div class="tp-ticker">${p.ticker}</div>
-                        <span class="ai-action ai-action-${(p.action||'').toLowerCase()}">${p.action}</span>
-                        <span class="tp-conviction tp-cv-${(p.conviction||'').toLowerCase()}">${p.conviction}</span>
-                        <span class="tp-hold">${p.holding_period || ''}</span>
-                    </div>
-                    <p class="tp-reasoning">${p.reasoning}</p>
-                    ${p.entry_timing || p.exit_timing ? `
-                    <div class="tp-timing">
-                        ${p.entry_timing ? `<div class="tp-timing-box"><span class="tp-timing-lbl">📥 When to Enter</span><p class="tp-timing-val">${p.entry_timing}</p></div>` : ''}
-                        ${p.exit_timing ? `<div class="tp-timing-box"><span class="tp-timing-lbl">📤 When to Exit</span><p class="tp-timing-val">${p.exit_timing}</p></div>` : ''}
-                    </div>` : ''}
-                    ${p.action === 'BUY' ? `
-                    <div class="tp-levels">
-                        <div class="tp-level">
-                            <span class="tp-lbl">Invest</span>
-                            <span class="tp-val tp-invest">${p.capital_to_invest} (${p.capital_pct}%)</span>
-                        </div>
-                        <div class="tp-level">
-                            <span class="tp-lbl">Qty</span>
-                            <span class="tp-val">${p.qty} shares</span>
-                        </div>
-                        <div class="tp-level">
-                            <span class="tp-lbl">Entry</span>
-                            <span class="tp-val">${p.entry_price}</span>
-                        </div>
-                        <div class="tp-level">
-                            <span class="tp-lbl">Stop Loss</span>
-                            <span class="tp-val text-red">${p.stop_loss}</span>
-                        </div>
-                        <div class="tp-level">
-                            <span class="tp-lbl">Target 1</span>
-                            <span class="tp-val text-green">${p.target_1}</span>
-                        </div>
-                        <div class="tp-level">
-                            <span class="tp-lbl">Target 2</span>
-                            <span class="tp-val text-green">${p.target_2}</span>
-                        </div>
-                    </div>
-                    <div class="tp-pnl">
-                        <div class="tp-pnl-item tp-profit">
-                            <span>If T1 hits →</span>
-                            <strong class="text-green">${p.expected_profit_t1}</strong>
-                        </div>
-                        <div class="tp-pnl-item tp-profit">
-                            <span>If T2 hits →</span>
-                            <strong class="text-green">${p.expected_profit_t2}</strong>
-                        </div>
-                        <div class="tp-pnl-item tp-loss">
-                            <span>If SL hits →</span>
-                            <strong class="text-red">-${p.max_loss}</strong>
-                        </div>
-                    </div>
-                    <div class="tp-rr-note">${p.risk_reward_note || ''}</div>
-                    ` : ''}
-                </div>
-            `).join('');
+            document.getElementById('aiPlans').innerHTML = plans.map(p => `<div class="trade-plan tp-${(p.action||'').toLowerCase()}"><div class="tp-header"><div class="tp-rank">#${p.rank}</div><div class="tp-ticker">${p.ticker}</div><span class="ai-action ai-action-${(p.action||'').toLowerCase()}">${p.action}</span><span class="tp-conviction tp-cv-${(p.conviction||'').toLowerCase()}">${p.conviction}</span><span class="tp-hold">${p.holding_period||''}</span><button class="btn-mini" onclick="showChartModal('${p.ticker}')" style="margin-left:auto;">📈</button></div><p class="tp-reasoning">${p.reasoning}</p>${p.entry_timing||p.exit_timing?`<div class="tp-timing">${p.entry_timing?`<div class="tp-timing-box"><span class="tp-timing-lbl">📥 Entry</span><p class="tp-timing-val">${p.entry_timing}</p></div>`:''} ${p.exit_timing?`<div class="tp-timing-box"><span class="tp-timing-lbl">📤 Exit</span><p class="tp-timing-val">${p.exit_timing}</p></div>`:''}</div>`:''}${p.action==='BUY'?`<div class="tp-levels"><div class="tp-level"><span class="tp-lbl">Invest</span><span class="tp-val tp-invest">${p.capital_to_invest} (${p.capital_pct}%)</span></div><div class="tp-level"><span class="tp-lbl">Qty</span><span class="tp-val">${p.qty} shares</span></div><div class="tp-level"><span class="tp-lbl">Entry</span><span class="tp-val">${p.entry_price}</span></div><div class="tp-level"><span class="tp-lbl">SL</span><span class="tp-val text-red">${p.stop_loss}</span></div><div class="tp-level"><span class="tp-lbl">T1</span><span class="tp-val text-green">${p.target_1}</span></div><div class="tp-level"><span class="tp-lbl">T2</span><span class="tp-val text-green">${p.target_2}</span></div></div><div class="tp-pnl"><div class="tp-pnl-item tp-profit"><span>T1 →</span><strong class="text-green">${p.expected_profit_t1}</strong></div><div class="tp-pnl-item tp-profit"><span>T2 →</span><strong class="text-green">${p.expected_profit_t2}</strong></div><div class="tp-pnl-item tp-loss"><span>SL →</span><strong class="text-red">-${p.max_loss}</strong></div></div><div class="tp-rr-note">${p.risk_reward_note||''}</div>`:''}</div>`).join('');
         }
-
-        // Watchlist (no-breakout scenario)
-        const watchlist = ai.watchlist || [];
-        if (watchlist.length) {
+        const wl = ai.watchlist || [];
+        if (wl.length) {
             document.getElementById('aiWatchTitle').style.display = '';
-            document.getElementById('aiWatchlist').innerHTML = watchlist.map(w => `
-                <div class="watch-card">
-                    <div class="watch-header">
-                        <strong>${w.ticker}</strong>
-                        <span class="watch-sector">${w.sector || ''}</span>
-                        ${w.current_price ? `<span class="watch-price">Now: ${w.current_price}</span>` : ''}
-                        ${w.trigger_level ? `<span class="watch-trigger">Trigger: ${w.trigger_level}</span>` : ''}
-                    </div>
-                    <p class="watch-why">${w.why_watch}</p>
-                    ${w.entry_timing || w.exit_timing ? `
-                    <div class="tp-timing" style="margin-top:8px;">
-                        ${w.entry_timing ? `<div class="tp-timing-box"><span class="tp-timing-lbl">📥 When to Enter</span><p class="tp-timing-val">${w.entry_timing}</p></div>` : ''}
-                        ${w.exit_timing ? `<div class="tp-timing-box"><span class="tp-timing-lbl">📤 When to Exit</span><p class="tp-timing-val">${w.exit_timing}</p></div>` : ''}
-                    </div>` : ''}
-                    ${w.qty_at_trigger ? `<div class="watch-invest">Buy ${w.qty_at_trigger} shares → ${w.investment_amount || ''}</div>` : ''}
-                </div>
-            `).join('');
+            document.getElementById('aiWatchlist').innerHTML = wl.map(w => `<div class="watch-card"><div class="watch-header"><strong>${w.ticker}</strong><span class="watch-sector">${w.sector||''}</span>${w.current_price?`<span class="watch-price">${w.current_price}</span>`:''} ${w.trigger_level?`<span class="watch-trigger">Trigger: ${w.trigger_level}</span>`:''}<button class="btn-mini" onclick="showChartModal('${w.ticker}')" style="margin-left:auto;">📈</button></div><p class="watch-why">${w.why_watch}</p>${w.entry_timing||w.exit_timing?`<div class="tp-timing" style="margin-top:8px;">${w.entry_timing?`<div class="tp-timing-box"><span class="tp-timing-lbl">📥 Entry</span><p class="tp-timing-val">${w.entry_timing}</p></div>`:''} ${w.exit_timing?`<div class="tp-timing-box"><span class="tp-timing-lbl">📤 Exit</span><p class="tp-timing-val">${w.exit_timing}</p></div>`:''}</div>`:''} ${w.qty_at_trigger?`<div class="watch-invest">Buy ${w.qty_at_trigger} shares → ${w.investment_amount||''}</div>`:''}</div>`).join('');
         }
-
-        // Re-entry conditions
-        if (ai.re_entry_conditions) {
-            document.getElementById('aiReentry').innerHTML =
-                `<div class="ai-reentry-box">🔄 <strong>When to Re-enter:</strong> ${ai.re_entry_conditions}</div>`;
-        }
+        if (ai.re_entry_conditions) document.getElementById('aiReentry').innerHTML = `<div class="ai-reentry-box">🔄 <strong>Re-enter:</strong> ${ai.re_entry_conditions}</div>`;
     }
 
-    document.addEventListener('keydown', e => { if(e.key==='Escape') closeModal(); });
-
-    // ──────────────────────────────────────────────
-    // Tab Navigation
-    // ──────────────────────────────────────────────
-    function switchTab(tab) {
-        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-        if (tab === 'aiHistory') {
-            document.getElementById('tabAiHistory').classList.add('active');
-            document.getElementById('aiHistoryTab').classList.add('active');
-            if (!aiHistoryLoaded) loadAiHistory();
-        } else if (tab === 'history') {
-            document.getElementById('tabHistory').classList.add('active');
-            document.getElementById('historyTab').classList.add('active');
-            if (!historyLoaded) loadHistory();
-        } else if (tab === 'analyzer') {
-            document.getElementById('tabAnalyzer').classList.add('active');
-            document.getElementById('analyzerTab').classList.add('active');
-        } else {
-            document.getElementById('tabToday').classList.add('active');
-            document.getElementById('todayTab').classList.add('active');
-        }
-    }
-
-    // ──────────────────────────────────────────────
-    // History
-    // ──────────────────────────────────────────────
-    let historyLoaded = false;
-    let historyData = [];
-    let livePrices = {};
-
-    async function loadHistory() {
-        document.getElementById('historyLoading').style.display = 'flex';
-        document.getElementById('historyEmpty').style.display = 'none';
-        document.getElementById('historyEntries').innerHTML = '';
+    // ── Risk Analysis ──
+    async function runRiskAnalysis(aiData, capital) {
         try {
-            const [hRes, pRes] = await Promise.all([
-                fetch('/api/history'),
-                fetch('/api/history/performance'),
-            ]);
-            const hJson = await hRes.json();
-            const pJson = await pRes.json();
-            if (hJson.status === 'success') historyData = hJson.data;
-            if (pJson.status === 'success') livePrices = pJson.data;
-            historyLoaded = true;
-            renderHistory();
-        } catch(e) {
-            document.getElementById('historyEntries').innerHTML =
-                `<p class="no-data">Failed to load history: ${e.message}</p>`;
-        }
-        document.getElementById('historyLoading').style.display = 'none';
-    }
-
-    function renderHistory() {
-        const container = document.getElementById('historyEntries');
-        if (!historyData.length) {
-            document.getElementById('historyEmpty').style.display = '';
-            document.getElementById('historyCount').textContent = '';
-            return;
-        }
-        document.getElementById('historyCount').textContent = `${historyData.length} day${historyData.length > 1 ? 's' : ''} tracked`;
-
-        container.innerHTML = historyData.map(entry => {
-            const picks = entry.picks || [];
-            const buyPicks = picks.filter(p => p.action === 'BUY');
-            const watchPicks = picks.filter(p => p.action === 'WATCH');
-            const biasClass = (entry.overall_bias || 'neutral').toLowerCase();
-
-            return `
-            <div class="history-entry">
-                <div class="history-header">
-                    <div class="history-date">
-                        <span class="history-date-main">${formatDate(entry.date)}</span>
-                        <span class="history-date-time">${entry.timestamp || ''}</span>
-                    </div>
-                    <div class="history-meta">
-                        <span class="ai-badge ai-bias-${biasClass}">${entry.overall_bias || '—'}</span>
-                        <span class="history-capital">₹${(entry.capital || 0).toLocaleString()}</span>
-                        <span class="history-stat">${entry.breakouts_found || 0} breakouts / ${entry.total_scanned || 0} scanned</span>
-                    </div>
-                </div>
-                ${entry.market_brief ? `<p class="history-brief">${entry.market_brief}</p>` : ''}
-                ${buyPicks.length ? `
-                    <h4 class="history-picks-title">Trade Plans</h4>
-                    <div class="history-picks-grid">
-                        ${buyPicks.map(p => renderHistoryPick(p, entry.date)).join('')}
-                    </div>
-                ` : ''}
-                ${watchPicks.length ? `
-                    <h4 class="history-picks-title">Watchlist</h4>
-                    <div class="history-picks-grid">
-                        ${watchPicks.map(p => renderHistoryPick(p, entry.date)).join('')}
-                    </div>
-                ` : ''}
-                ${!picks.length ? '<p class="no-data">No picks recorded for this day.</p>' : ''}
-            </div>`;
-        }).join('');
-    }
-
-    function renderHistoryPick(pick, dateStr) {
-        const ticker = pick.ticker || '—';
-        const livePrice = livePrices[ticker];
-        const entryNum = parseFloat(String(pick.entry_price).replace(/[₹,]/g, ''));
-        const t1Num = parseFloat(String(pick.target_1).replace(/[₹,]/g, ''));
-        const slNum = parseFloat(String(pick.stop_loss).replace(/[₹,]/g, ''));
-
-        let status = '', statusClass = '';
-        if (livePrice && entryNum) {
-            if (t1Num && livePrice >= t1Num) {
-                status = '✅ Target Hit';
-                statusClass = 'perf-win';
-            } else if (slNum && livePrice <= slNum) {
-                status = '🛑 SL Hit';
-                statusClass = 'perf-loss';
-            } else {
-                const pnlPct = ((livePrice - entryNum) / entryNum * 100).toFixed(1);
-                status = `${pnlPct >= 0 ? '+' : ''}${pnlPct}%`;
-                statusClass = pnlPct >= 0 ? 'perf-up' : 'perf-down';
-            }
-        }
-
-        return `
-        <div class="history-pick ${pick.action === 'WATCH' ? 'hp-watch' : 'hp-buy'}">
-            <div class="hp-top">
-                <strong class="hp-ticker">${ticker}</strong>
-                <span class="ai-action ai-action-${(pick.action||'').toLowerCase()}">${pick.action || ''}</span>
-                ${pick.conviction ? `<span class="tp-conviction tp-cv-${(pick.conviction||'').toLowerCase()}">${pick.conviction}</span>` : ''}
-                ${status ? `<span class="hp-perf ${statusClass}">${status}</span>` : ''}
-            </div>
-            <div class="hp-levels">
-                ${pick.entry_price ? `<span>Entry: <strong>${pick.entry_price}</strong></span>` : ''}
-                ${pick.stop_loss ? `<span>SL: <strong class="text-red">${pick.stop_loss}</strong></span>` : ''}
-                ${pick.target_1 ? `<span>T1: <strong class="text-green">${pick.target_1}</strong></span>` : ''}
-                ${pick.target_2 ? `<span>T2: <strong class="text-green">${pick.target_2}</strong></span>` : ''}
-            </div>
-            ${livePrice ? `<div class="hp-live">Now: <strong>₹${livePrice.toLocaleString()}</strong></div>` : ''}
-            ${pick.reasoning ? `<p class="hp-reason">${pick.reasoning}</p>` : ''}
-            ${pick.qty ? `<span class="hp-qty">${pick.qty} shares · ${pick.capital_to_invest || ''}</span>` : ''}
-        </div>`;
-    }
-
-    function formatDate(dateStr) {
-        try {
-            const d = new Date(dateStr + 'T00:00:00');
-            const today = new Date(); today.setHours(0,0,0,0);
-            const yesterday = new Date(today); yesterday.setDate(today.getDate()-1);
-            if (d.getTime() === today.getTime()) return 'Today';
-            if (d.getTime() === yesterday.getTime()) return 'Yesterday';
-            return d.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
-        } catch(e) { return dateStr; }
-    }
-
-    // ──────────────────────────────────────────────
-    // Stock Analyzer
-    // ──────────────────────────────────────────────
-    document.getElementById('stockSymbolInput').addEventListener('keydown', e => {
-        if (e.key === 'Enter') { closeSearchDropdown(); analyzeStock(); }
-        if (e.key === 'Escape') closeSearchDropdown();
-    });
-
-    let searchTimeout = null;
-    document.getElementById('stockSymbolInput').addEventListener('input', e => {
-        clearTimeout(searchTimeout);
-        const q = e.target.value.trim();
-        if (q.length < 2) { closeSearchDropdown(); return; }
-        searchTimeout = setTimeout(() => searchStocks(q), 350);
-    });
-
-    async function searchStocks(q) {
-        try {
-            const r = await fetch('/api/stock-search?q=' + encodeURIComponent(q));
+            const r = await fetch('/api/risk-analysis', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ trade_plans: aiData.trade_plans || [], capital }) });
             const j = await r.json();
-            if (j.status === 'success' && j.data.length) {
-                const dd = document.getElementById('searchDropdown');
-                dd.innerHTML = j.data.map(s =>
-                    `<div class="search-item" onclick="selectStock('${s.ticker}')">
-                        <div>
-                            <strong>${s.ticker}</strong>
-                            ${s.name ? `<span class="search-name">${s.name}</span>` : ''}
-                        </div>
-                        <span class="search-sector">${s.sector}</span>
-                    </div>`
-                ).join('');
-                dd.style.display = 'block';
-            } else {
-                closeSearchDropdown();
-            }
-        } catch(e) { closeSearchDropdown(); }
+            if (j.status === 'success' && j.data) renderRisk(j.data);
+        } catch(e) { console.error('Risk error:', e); }
     }
 
-    function selectStock(ticker) {
-        document.getElementById('stockSymbolInput').value = ticker;
-        closeSearchDropdown();
-        analyzeStock();
+    function renderRisk(risk) {
+        const panel = document.getElementById('riskPanel');
+        const rc = risk.risk_level === 'HIGH' ? 'red' : (risk.risk_level === 'MODERATE' ? 'yellow' : 'green');
+        let sectorHtml = '';
+        if (risk.sector_concentration?.sectors) sectorHtml = Object.entries(risk.sector_concentration.sectors).map(([s,pct]) => `<div class="sector-heat-item" style="flex-basis:${Math.max(20,pct)}%"><span class="sector-heat-name">${s}</span><span class="sector-heat-pct">${pct}%</span></div>`).join('');
+        let corrHtml = risk.correlation_matrix?.high_pairs?.length ? `<div class="risk-corr-pairs">${risk.correlation_matrix.high_pairs.map(p=>`<span class="corr-pair">🔗 ${p.pair}: r=${p.correlation}</span>`).join('')}</div>` : '';
+        let warningsHtml = risk.warnings.map(w => `<div class="risk-warning risk-${w.level.toLowerCase()}">⚠ ${w.message}</div>`).join('');
+        panel.innerHTML = `<div class="risk-header"><h3>🛡️ Portfolio Risk Analysis</h3><div class="risk-score-circle cv-${rc}">${risk.risk_score}</div><span class="risk-level-badge risk-level-${rc}">${risk.risk_level} RISK</span></div><div class="risk-stats-grid"><div class="risk-stat"><span class="risk-stat-val">${risk.num_positions}</span><span class="risk-stat-lbl">Positions</span></div><div class="risk-stat"><span class="risk-stat-val">₹${(risk.total_deployed||0).toLocaleString()}</span><span class="risk-stat-lbl">Deployed</span></div><div class="risk-stat"><span class="risk-stat-val">${risk.cash_pct}%</span><span class="risk-stat-lbl">Cash</span></div><div class="risk-stat"><span class="risk-stat-val text-red">₹${(risk.var_95?.var_amount||0).toLocaleString()}</span><span class="risk-stat-lbl">VaR 95%</span></div><div class="risk-stat"><span class="risk-stat-val">${risk.sector_concentration?.num_sectors||0}</span><span class="risk-stat-lbl">Sectors</span></div><div class="risk-stat"><span class="risk-stat-val">${risk.correlation_matrix?.avg_correlation||0}</span><span class="risk-stat-lbl">Avg Corr</span></div></div>${sectorHtml?`<div class="sector-heatmap"><h4>Sector Exposure</h4><div class="sector-heat-row">${sectorHtml}</div></div>`:''}${corrHtml}${warningsHtml||'<div class="risk-all-clear">✅ No major risk warnings</div>'}`;
+        panel.style.display = '';
     }
 
-    function closeSearchDropdown() {
-        document.getElementById('searchDropdown').style.display = 'none';
+    // ── Performance ──
+    let perfLoaded = false;
+    async function loadPerformance() {
+        document.getElementById('perfLoading').style.display = 'flex'; document.getElementById('perfContent').innerHTML = '';
+        try { const r = await fetch('/api/performance'); const j = await r.json(); if (j.status==='success') { perfLoaded=true; renderPerformance(j.data); } else document.getElementById('perfContent').innerHTML='<p class="no-data">No data</p>'; } catch(e) { document.getElementById('perfContent').innerHTML=`<p class="no-data">${e.message}</p>`; }
+        document.getElementById('perfLoading').style.display = 'none';
     }
 
-    // Close dropdown when clicking outside
-    document.addEventListener('click', e => {
-        if (!e.target.closest('.analyzer-search')) closeSearchDropdown();
-    });
+    function renderPerformance(p) {
+        let cvBreakdown = p.conviction_stats ? Object.entries(p.conviction_stats).map(([l,s]) => `<div class="perf-cv-row"><span class="perf-cv-level tp-cv-${l.toLowerCase()}">${l}</span><span class="perf-cv-stat">${s.total} picks</span><span class="perf-cv-stat text-green">${s.wins}W</span><span class="perf-cv-stat text-red">${s.losses}L</span><span class="perf-cv-rate ${s.win_rate>=50?'text-green':'text-red'}">${s.win_rate}%</span></div>`).join('') : '';
+        let sectorPerf = (p.sector_performance||[]).slice(0,10).map(s => `<tr><td><strong>${s.sector}</strong></td><td>${s.total_picks}</td><td class="text-green">${s.wins}</td><td class="text-red">${s.losses}</td><td class="${s.win_rate>=50?'text-green':'text-red'}">${s.win_rate}%</td><td class="${s.avg_return>=0?'text-green':'text-red'}">${s.avg_return>0?'+':''}${s.avg_return}%</td></tr>`).join('');
+        document.getElementById('perfContent').innerHTML = `
+            <div class="perf-overview"><div class="perf-card perf-highlight"><div class="perf-card-val" style="font-size:36px;color:${p.win_rate>=50?'var(--green)':'var(--red)'}">${p.win_rate}%</div><div class="perf-card-lbl">Win Rate</div></div><div class="perf-card"><div class="perf-card-val ${p.avg_return>=0?'text-green':'text-red'}">${p.avg_return>0?'+':''}${p.avg_return}%</div><div class="perf-card-lbl">Avg Return</div></div><div class="perf-card"><div class="perf-card-val ${p.sharpe_ratio>=1?'text-green':p.sharpe_ratio>=0?'text-yellow':'text-red'}">${p.sharpe_ratio}</div><div class="perf-card-lbl">Sharpe</div></div><div class="perf-card"><div class="perf-card-val text-red">${p.max_drawdown}%</div><div class="perf-card-lbl">Max DD</div></div><div class="perf-card"><div class="perf-card-val">${p.total_picks}</div><div class="perf-card-lbl">Total</div></div><div class="perf-card"><div class="perf-card-val text-green">${p.wins}</div><div class="perf-card-lbl">Wins</div></div><div class="perf-card"><div class="perf-card-val text-red">${p.losses}</div><div class="perf-card-lbl">Losses</div></div><div class="perf-card"><div class="perf-card-val">${p.active}</div><div class="perf-card-lbl">Active</div></div></div>
+            <div class="perf-details-grid"><div class="section"><h3 class="section-title">Streaks</h3><div class="perf-streaks"><div class="perf-streak-item"><span>🔥 Best Win</span><strong class="text-green">${p.best_streak}</strong></div><div class="perf-streak-item"><span>❄️ Worst Loss</span><strong class="text-red">${p.worst_streak}</strong></div><div class="perf-streak-item"><span>📊 Current</span><strong class="${p.current_streak>=0?'text-green':'text-red'}">${p.current_streak>=0?'+':''}${p.current_streak}</strong></div>${p.best_trade?`<div class="perf-streak-item"><span>🏆 Best</span><strong class="text-green">${p.best_trade.ticker} +${p.best_trade.pnl_pct}%</strong></div>`:''} ${p.worst_trade?`<div class="perf-streak-item"><span>💀 Worst</span><strong class="text-red">${p.worst_trade.ticker} ${p.worst_trade.pnl_pct}%</strong></div>`:''}<div class="perf-streak-item"><span>📅 Days</span><strong>${p.total_days_tracked}</strong></div></div></div><div class="section"><h3 class="section-title">By Conviction</h3><div class="perf-cv-breakdown">${cvBreakdown||'<p class="no-data">No data</p>'}</div></div></div>
+            ${sectorPerf?`<div class="section"><h3 class="section-title">Sector Performance</h3><div class="table-wrapper"><table class="data-table"><tr><th>Sector</th><th>Picks</th><th>Wins</th><th>Losses</th><th>Win%</th><th>Avg Return</th></tr>${sectorPerf}</table></div></div>`:''}
+            <div class="disclaimer-box">⚠️ Past performance is not indicative of future results. Not SEBI registered. DYOR.</div>`;
+    }
+
+    // ── Watchlists ──
+    let wlLoaded = false;
+    async function loadWatchlists() { try { const r = await fetch('/api/watchlists'); const j = await r.json(); if (j.status==='success') { wlLoaded=true; renderWatchlists(j.data); } } catch(e) { showError(e.message); } }
+    function renderWatchlists(wls) { const c=document.getElementById('watchlistsContent'); if(!wls.length){c.innerHTML='<div class="empty-state" style="padding:40px"><div class="empty-icon">⭐</div><h3>No Watchlists</h3><p>Create one above.</p></div>';return;} c.innerHTML=wls.map(wl=>`<div class="wl-card" id="wl-${wl.id}"><div class="wl-card-header"><h3>${wl.name}</h3><span class="wl-count">${wl.stock_count} stocks</span><button class="btn-mini" onclick="toggleWlStocks(${wl.id})">📋</button><button class="btn-mini btn-danger" onclick="deleteWl(${wl.id})">🗑️</button></div><div class="wl-stocks" id="wl-stocks-${wl.id}" style="display:none"></div><div class="wl-add-row" id="wl-add-${wl.id}" style="display:none"><input type="text" class="wl-add-input" id="wl-add-input-${wl.id}" placeholder="Add ticker..."><button class="btn-mini" onclick="addToWl(${wl.id})">+</button></div></div>`).join(''); }
+    async function createWatchlist() { const n=document.getElementById('newWlName').value.trim(); if(!n)return; await fetch('/api/watchlists',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n})}); document.getElementById('newWlName').value=''; loadWatchlists(); showSuccess('Created'); }
+    async function toggleWlStocks(id) { const el=document.getElementById('wl-stocks-'+id),add=document.getElementById('wl-add-'+id); if(el.style.display==='none'){el.style.display='';add.style.display='';try{const r=await fetch(`/api/watchlists/${id}/stocks`);const j=await r.json();if(j.status==='success')el.innerHTML=j.data.length?j.data.map(s=>`<div class="wl-stock-item"><strong>${s.ticker}</strong>${s.notes?`<span class="wl-stock-notes">${s.notes}</span>`:''}<button class="btn-mini" onclick="showChartModal('${s.ticker}')">📈</button><button class="btn-mini" onclick="quickAnalyze('${s.ticker}')">🤖</button><button class="btn-mini btn-danger" onclick="removeFromWl(${id},'${s.ticker}')">✕</button></div>`).join(''):'<p class="no-data">Empty. Add below.</p>';}catch(e){el.innerHTML='<p class="no-data">Error</p>';}}else{el.style.display='none';add.style.display='none';} }
+    async function addToWl(id) { const i=document.getElementById('wl-add-input-'+id),t=i.value.trim().toUpperCase(); if(!t)return; await fetch(`/api/watchlists/${id}/stocks`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ticker:t})}); i.value=''; toggleWlStocks(id);toggleWlStocks(id); showSuccess(t+' added'); }
+    async function removeFromWl(id,t) { await fetch(`/api/watchlists/${id}/stocks/${t}`,{method:'DELETE'}); toggleWlStocks(id);toggleWlStocks(id); }
+    async function deleteWl(id) { if(!confirm('Delete?'))return; await fetch(`/api/watchlists/${id}`,{method:'DELETE'}); loadWatchlists(); }
+
+    // ── Export ──
+    function toggleExportMenu() { const m=document.getElementById('exportMenu'); m.style.display=m.style.display==='none'?'block':'none'; }
+    document.addEventListener('click', e => { if(!e.target.closest('.export-dropdown')) document.getElementById('exportMenu').style.display='none'; });
+    function exportCSV(type) { window.open({scan:'/api/export/scan',ai:'/api/export/ai',performance:'/api/export/performance'}[type],'_blank'); document.getElementById('exportMenu').style.display='none'; }
+    function exportReport() { window.open('/api/export/report','_blank'); document.getElementById('exportMenu').style.display='none'; }
+
+    // ── Tabs ──
+    function switchTab(tab) {
+        document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(c=>c.classList.remove('active'));
+        const m={today:['tabToday','todayTab'],aiHistory:['tabAiHistory','aiHistoryTab'],performance:['tabPerformance','performanceTab'],watchlists:['tabWatchlists','watchlistsTab'],analyzer:['tabAnalyzer','analyzerTab'],history:['tabHistory','historyTab']};
+        const [b,c]=m[tab]||m.today; document.getElementById(b).classList.add('active'); document.getElementById(c).classList.add('active');
+        if(tab==='aiHistory'&&!aiHistoryLoaded)loadAiHistory(); if(tab==='history'&&!historyLoaded)loadHistory(); if(tab==='performance'&&!perfLoaded)loadPerformance(); if(tab==='watchlists'&&!wlLoaded)loadWatchlists();
+    }
+
+    // ── History ──
+    let historyLoaded=false,historyData=[],livePrices={};
+    async function loadHistory() { document.getElementById('historyLoading').style.display='flex'; document.getElementById('historyEmpty').style.display='none'; document.getElementById('historyEntries').innerHTML=''; try{const[h,p]=await Promise.all([fetch('/api/history'),fetch('/api/history/performance')]); const hj=await h.json(),pj=await p.json(); if(hj.status==='success')historyData=hj.data; if(pj.status==='success')livePrices=pj.data; historyLoaded=true; renderHistory();}catch(e){document.getElementById('historyEntries').innerHTML=`<p class="no-data">${e.message}</p>`;} document.getElementById('historyLoading').style.display='none'; }
+    function renderHistory() { const c=document.getElementById('historyEntries'); if(!historyData.length){document.getElementById('historyEmpty').style.display='';return;} document.getElementById('historyCount').textContent=`${historyData.length} days`; c.innerHTML=historyData.map(e=>{const bp=(e.picks||[]).filter(p=>p.action==='BUY'),wp=(e.picks||[]).filter(p=>p.action==='WATCH'),bc=(e.overall_bias||'neutral').toLowerCase(); return`<div class="history-entry"><div class="history-header"><div class="history-date"><span class="history-date-main">${formatDate(e.date)}</span><span class="history-date-time">${e.timestamp||''}</span></div><div class="history-meta"><span class="ai-badge ai-bias-${bc}">${e.overall_bias||'—'}</span><span class="history-capital">₹${(e.capital||0).toLocaleString()}</span></div></div>${e.market_brief?`<p class="history-brief">${e.market_brief}</p>`:''}${bp.length?`<h4 class="history-picks-title">Trades</h4><div class="history-picks-grid">${bp.map(p=>renderHPick(p)).join('')}</div>`:''}${wp.length?`<h4 class="history-picks-title">Watch</h4><div class="history-picks-grid">${wp.map(p=>renderHPick(p)).join('')}</div>`:''}</div>`;}).join(''); }
+    function renderHPick(pick) { const t=pick.ticker||'—',lp=livePrices[t],en=parseFloat(String(pick.entry_price).replace(/[₹,]/g,'')),t1=parseFloat(String(pick.target_1).replace(/[₹,]/g,'')),sl=parseFloat(String(pick.stop_loss).replace(/[₹,]/g,'')); let st='',sc=''; if(lp&&en){if(t1&&lp>=t1){st='✅ Hit';sc='perf-win';}else if(sl&&lp<=sl){st='🛑 SL';sc='perf-loss';}else{const pp=((lp-en)/en*100).toFixed(1);st=`${pp>=0?'+':''}${pp}%`;sc=pp>=0?'perf-up':'perf-down';}} return`<div class="history-pick ${pick.action==='WATCH'?'hp-watch':'hp-buy'}"><div class="hp-top"><strong class="hp-ticker">${t}</strong><span class="ai-action ai-action-${(pick.action||'').toLowerCase()}">${pick.action||''}</span>${pick.conviction?`<span class="tp-conviction tp-cv-${(pick.conviction||'').toLowerCase()}">${pick.conviction}</span>`:''} ${st?`<span class="hp-perf ${sc}">${st}</span>`:''}</div><div class="hp-levels">${pick.entry_price?`<span>E: <strong>${pick.entry_price}</strong></span>`:''} ${pick.stop_loss?`<span>SL: <strong class="text-red">${pick.stop_loss}</strong></span>`:''} ${pick.target_1?`<span>T1: <strong class="text-green">${pick.target_1}</strong></span>`:''}</div>${lp?`<div class="hp-live">Now: ₹${lp.toLocaleString()}</div>`:''} ${pick.reasoning?`<p class="hp-reason">${pick.reasoning}</p>`:''}</div>`; }
+    function formatDate(d) { try{const dt=new Date(d+'T00:00:00'),t=new Date();t.setHours(0,0,0,0);const y=new Date(t);y.setDate(t.getDate()-1);if(dt.getTime()===t.getTime())return'Today';if(dt.getTime()===y.getTime())return'Yesterday';return dt.toLocaleDateString('en-IN',{weekday:'short',day:'numeric',month:'short',year:'numeric'});}catch(e){return d;} }
+
+    // ── Analyzer ──
+    document.getElementById('stockSymbolInput').addEventListener('keydown',e=>{if(e.key==='Enter'){closeSearchDropdown();analyzeStock();}if(e.key==='Escape')closeSearchDropdown();});
+    let searchTimeout=null; document.getElementById('stockSymbolInput').addEventListener('input',e=>{clearTimeout(searchTimeout);const q=e.target.value.trim();if(q.length<2){closeSearchDropdown();return;}searchTimeout=setTimeout(()=>searchStocks(q),350);});
+    async function searchStocks(q) { try{const r=await fetch('/api/stock-search?q='+encodeURIComponent(q));const j=await r.json();if(j.status==='success'&&j.data.length){const d=document.getElementById('searchDropdown');d.innerHTML=j.data.map(s=>`<div class="search-item" onclick="selectStock('${s.ticker}')"><div><strong>${s.ticker}</strong>${s.name?`<span class="search-name">${s.name}</span>`:''}</div><span class="search-sector">${s.sector}</span></div>`).join('');d.style.display='block';}else closeSearchDropdown();}catch(e){closeSearchDropdown();} }
+    function selectStock(t) { document.getElementById('stockSymbolInput').value=t; closeSearchDropdown(); analyzeStock(); }
+    function closeSearchDropdown() { document.getElementById('searchDropdown').style.display='none'; }
+    document.addEventListener('click',e=>{if(!e.target.closest('.analyzer-search'))closeSearchDropdown();});
 
     async function analyzeStock() {
-        const input = document.getElementById('stockSymbolInput');
-        const symbol = input.value.trim().toUpperCase();
-        if (!symbol) { input.focus(); return; }
-
-        const btn = document.getElementById('analyzeBtn');
-        const loading = document.getElementById('analyzerLoading');
-        const result = document.getElementById('analyzerResult');
-
-        btn.disabled = true; btn.innerHTML = '<span class="btn-icon">⏳</span> Analyzing...';
-        loading.style.display = 'flex';
-        result.innerHTML = '';
-
-        try {
-            const r = await fetch('/api/analyze-stock?symbol=' + encodeURIComponent(symbol));
-            const j = await r.json();
-            if (j.status === 'success') {
-                renderStockAnalysis(j.data);
-            } else {
-                result.innerHTML = `<div class="alert alert-warning">${j.message || 'Analysis failed'}</div>`;
-            }
-        } catch(e) {
-            result.innerHTML = `<div class="alert alert-warning">Error: ${e.message}</div>`;
-        }
-
-        loading.style.display = 'none';
-        btn.disabled = false; btn.innerHTML = '<span class="btn-icon">🤖</span> Analyze';
+        const input=document.getElementById('stockSymbolInput'),sym=input.value.trim().toUpperCase(); if(!sym){input.focus();return;}
+        const btn=document.getElementById('analyzeBtn'); btn.disabled=true; btn.innerHTML='<span class="btn-icon">⏳</span> Analyzing...';
+        document.getElementById('analyzerLoading').style.display='flex'; document.getElementById('analyzerResult').innerHTML='';
+        const cc=document.getElementById('stockChartContainer'); cc.style.display=''; document.getElementById('chartTitle').textContent=`${sym} — 6M Chart`;
+        if(stockChartInstance){stockChartInstance.remove();stockChartInstance=null;} stockChartInstance=await loadChart(sym,'stockChart',400);
+        try{const r=await fetch('/api/analyze-stock?symbol='+encodeURIComponent(sym));const j=await r.json();if(j.status==='success')renderStockAnalysis(j.data);else document.getElementById('analyzerResult').innerHTML=`<div class="alert alert-warning">${j.message||'Failed'}</div>`;}catch(e){document.getElementById('analyzerResult').innerHTML=`<div class="alert alert-warning">${e.message}</div>`;}
+        document.getElementById('analyzerLoading').style.display='none'; btn.disabled=false; btn.innerHTML='<span class="btn-icon">🤖</span> Analyze';
     }
 
     function renderStockAnalysis(data) {
-        const t = data.technicals || {};
-        const ip = data.intraday_plan || {};
-        const sp = data.swing_plan || {};
-        const kl = data.key_levels || {};
-        const signals = data.signals || [];
-        const verdictClass = (data.verdict || '').includes('BUY') ? 'green' :
-                             (data.verdict || '').includes('AVOID') || (data.verdict || '').includes('SHORT') ? 'red' : 'yellow';
-
-        document.getElementById('analyzerResult').innerHTML = `
-        <div class="sa-card">
-            <div class="sa-header">
-                <div>
-                    <h2 class="sa-ticker">${data.ticker || t.ticker || '—'}</h2>
-                    <div class="sa-price-row">
-                        <span class="sa-price">₹${t.close || '—'}</span>
-                        <span class="${(t.change_pct||0)>=0?'text-green':'text-red'}">${(t.change_pct||0)>0?'+':''}${t.change_pct||0}%</span>
-                    </div>
-                </div>
-                <div class="sa-verdict-wrap">
-                    <span class="sa-verdict badge-${verdictClass}">${data.verdict || '—'}</span>
-                </div>
-            </div>
-            <p class="sa-brief">${data.brief || ''}</p>
-
-            <!-- Technicals Strip -->
-            <div class="sa-technicals">
-                <div class="sa-tech-item"><span class="sa-tech-lbl">RSI</span><span class="sa-tech-val ${t.rsi>70?'text-red':t.rsi<30?'text-green':''}">${t.rsi||'—'}</span></div>
-                <div class="sa-tech-item"><span class="sa-tech-lbl">VWAP</span><span class="sa-tech-val">₹${t.vwap||'—'}</span></div>
-                <div class="sa-tech-item"><span class="sa-tech-lbl">ATR</span><span class="sa-tech-val">₹${t.atr||'—'}</span></div>
-                <div class="sa-tech-item"><span class="sa-tech-lbl">Vol</span><span class="sa-tech-val">${t.volume_ratio||'—'}x</span></div>
-                <div class="sa-tech-item"><span class="sa-tech-lbl">50 DMA</span><span class="sa-tech-val ${t.above_50dma?'text-green':'text-red'}">${t.above_50dma?'Above':'Below'}</span></div>
-                <div class="sa-tech-item"><span class="sa-tech-lbl">200 DMA</span><span class="sa-tech-val ${t.above_200dma?'text-green':'text-red'}">${t.above_200dma?'Above':'Below'}</span></div>
-                <div class="sa-tech-item"><span class="sa-tech-lbl">MACD</span><span class="sa-tech-val ${t.macd_hist>0?'text-green':'text-red'}">${t.macd_hist>0?'Bullish':'Bearish'}</span></div>
-            </div>
-
-            <div class="sa-plans-grid">
-                <!-- Intraday Plan -->
-                <div class="sa-plan ${ip.bias==='BULLISH'?'sa-plan-bull':ip.bias==='BEARISH'?'sa-plan-bear':'sa-plan-neutral'}">
-                    <h3 class="sa-plan-title">⚡ Intraday Plan <span class="sa-plan-bias">${ip.bias||''}</span></h3>
-                    <div class="sa-timing-box">
-                        <div class="sa-timing">
-                            <span class="sa-timing-lbl">📥 WHEN TO ENTER</span>
-                            <p class="sa-timing-val">${ip.entry_timing||'—'}</p>
-                        </div>
-                        <div class="sa-timing">
-                            <span class="sa-timing-lbl">📤 WHEN TO EXIT</span>
-                            <p class="sa-timing-val">${ip.exit_timing||'—'}</p>
-                        </div>
-                    </div>
-                    <div class="sa-levels-grid">
-                        <div class="sa-lvl"><span class="sa-lvl-lbl">Entry</span><span class="sa-lvl-val">${ip.entry_price||'—'}</span></div>
-                        <div class="sa-lvl"><span class="sa-lvl-lbl">Stop Loss</span><span class="sa-lvl-val text-red">${ip.stop_loss||'—'}</span></div>
-                        <div class="sa-lvl"><span class="sa-lvl-lbl">Target 1</span><span class="sa-lvl-val text-green">${ip.target_1||'—'}</span></div>
-                        <div class="sa-lvl"><span class="sa-lvl-lbl">Target 2</span><span class="sa-lvl-val text-green">${ip.target_2||'—'}</span></div>
-                        <div class="sa-lvl"><span class="sa-lvl-lbl">Target 3</span><span class="sa-lvl-val text-green">${ip.target_3||'—'}</span></div>
-                        <div class="sa-lvl"><span class="sa-lvl-lbl">R:R</span><span class="sa-lvl-val">${ip.risk_reward||'—'}</span></div>
-                    </div>
-                    ${ip.qty_for_1L ? `
-                    <div class="sa-pnl-row">
-                        <span>Qty (₹1L capital): <strong>${ip.qty_for_1L} shares</strong></span>
-                        <span class="text-green">Max Profit: <strong>${ip.max_profit||'—'}</strong></span>
-                        <span class="text-red">Max Loss: <strong>${ip.max_loss||'—'}</strong></span>
-                    </div>` : ''}
-                </div>
-
-                <!-- Swing Plan -->
-                <div class="sa-plan ${sp.bias==='BULLISH'?'sa-plan-bull':sp.bias==='BEARISH'?'sa-plan-bear':'sa-plan-neutral'}">
-                    <h3 class="sa-plan-title">📈 Swing Plan <span class="sa-plan-bias">${sp.bias||''} · ${sp.holding_period||''}</span></h3>
-                    <div class="sa-timing-box">
-                        <div class="sa-timing">
-                            <span class="sa-timing-lbl">📥 WHEN TO ENTER</span>
-                            <p class="sa-timing-val">${sp.entry_timing||'—'}</p>
-                        </div>
-                        <div class="sa-timing">
-                            <span class="sa-timing-lbl">📤 WHEN TO EXIT</span>
-                            <p class="sa-timing-val">${sp.exit_timing||'—'}</p>
-                        </div>
-                    </div>
-                    <div class="sa-levels-grid">
-                        <div class="sa-lvl"><span class="sa-lvl-lbl">Entry</span><span class="sa-lvl-val">${sp.entry_price||'—'}</span></div>
-                        <div class="sa-lvl"><span class="sa-lvl-lbl">Stop Loss</span><span class="sa-lvl-val text-red">${sp.stop_loss||'—'}</span></div>
-                        <div class="sa-lvl"><span class="sa-lvl-lbl">Target 1</span><span class="sa-lvl-val text-green">${sp.target_1||'—'}</span></div>
-                        <div class="sa-lvl"><span class="sa-lvl-lbl">Target 2</span><span class="sa-lvl-val text-green">${sp.target_2||'—'}</span></div>
-                        <div class="sa-lvl"><span class="sa-lvl-lbl">R:R</span><span class="sa-lvl-val">${sp.risk_reward||'—'}</span></div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Key Levels -->
-            <div class="sa-key-levels">
-                <h3 class="sa-section-title">Key Levels</h3>
-                <div class="sa-levels-strip">
-                    ${kl.support_2?`<div class="sa-kl sa-kl-support"><span>S2</span><strong>${kl.support_2}</strong></div>`:''}
-                    ${kl.support_1?`<div class="sa-kl sa-kl-support"><span>S1</span><strong>${kl.support_1}</strong></div>`:''}
-                    ${kl.pivot?`<div class="sa-kl sa-kl-pivot"><span>Pivot</span><strong>${kl.pivot}</strong></div>`:''}
-                    ${kl.vwap?`<div class="sa-kl sa-kl-pivot"><span>VWAP</span><strong>${kl.vwap}</strong></div>`:''}
-                    ${kl.resistance_1?`<div class="sa-kl sa-kl-resist"><span>R1</span><strong>${kl.resistance_1}</strong></div>`:''}
-                    ${kl.resistance_2?`<div class="sa-kl sa-kl-resist"><span>R2</span><strong>${kl.resistance_2}</strong></div>`:''}
-                </div>
-            </div>
-
-            <!-- Signals -->
-            ${signals.length ? `
-            <div class="sa-signals">
-                <h3 class="sa-section-title">Signals</h3>
-                <div class="sa-signals-list">
-                    ${signals.map(s => `<span class="sa-signal">${s}</span>`).join('')}
-                </div>
-            </div>` : ''}
-
-            <!-- Avoid If -->
-            ${data.avoid_if ? `
-            <div class="alert alert-warning" style="margin-top:16px;">
-                <strong>⚠ Invalidation:</strong> ${data.avoid_if}
-            </div>` : ''}
-        </div>`;
+        const t=data.technicals||{},ip=data.intraday_plan||{},sp=data.swing_plan||{},kl=data.key_levels||{},sig=data.signals||[];
+        const vc=(data.verdict||'').includes('BUY')?'green':(data.verdict||'').includes('AVOID')||(data.verdict||'').includes('SHORT')?'red':'yellow';
+        document.getElementById('analyzerResult').innerHTML=`<div class="sa-card"><div class="sa-header"><div><h2 class="sa-ticker">${data.ticker||t.ticker||'—'}</h2><div class="sa-price-row"><span class="sa-price">₹${t.close||'—'}</span><span class="${(t.change_pct||0)>=0?'text-green':'text-red'}">${(t.change_pct||0)>0?'+':''}${t.change_pct||0}%</span></div></div><div class="sa-verdict-wrap"><span class="sa-verdict badge-${vc}">${data.verdict||'—'}</span></div></div><p class="sa-brief">${data.brief||''}</p><div class="sa-technicals"><div class="sa-tech-item"><span class="sa-tech-lbl">RSI</span><span class="sa-tech-val ${t.rsi>70?'text-red':t.rsi<30?'text-green':''}">${t.rsi||'—'}</span></div><div class="sa-tech-item"><span class="sa-tech-lbl">VWAP</span><span class="sa-tech-val">₹${t.vwap||'—'}</span></div><div class="sa-tech-item"><span class="sa-tech-lbl">ATR</span><span class="sa-tech-val">₹${t.atr||'—'}</span></div><div class="sa-tech-item"><span class="sa-tech-lbl">Vol</span><span class="sa-tech-val">${t.volume_ratio||'—'}x</span></div><div class="sa-tech-item"><span class="sa-tech-lbl">50D</span><span class="sa-tech-val ${t.above_50dma?'text-green':'text-red'}">${t.above_50dma?'Above':'Below'}</span></div><div class="sa-tech-item"><span class="sa-tech-lbl">200D</span><span class="sa-tech-val ${t.above_200dma?'text-green':'text-red'}">${t.above_200dma?'Above':'Below'}</span></div><div class="sa-tech-item"><span class="sa-tech-lbl">MACD</span><span class="sa-tech-val ${t.macd_hist>0?'text-green':'text-red'}">${t.macd_hist>0?'Bull':'Bear'}</span></div></div><div class="sa-plans-grid"><div class="sa-plan ${ip.bias==='BULLISH'?'sa-plan-bull':ip.bias==='BEARISH'?'sa-plan-bear':'sa-plan-neutral'}"><h3 class="sa-plan-title">⚡ Intraday <span class="sa-plan-bias">${ip.bias||''}</span></h3><div class="sa-timing-box"><div class="sa-timing"><span class="sa-timing-lbl">📥 ENTRY</span><p class="sa-timing-val">${ip.entry_timing||'—'}</p></div><div class="sa-timing"><span class="sa-timing-lbl">📤 EXIT</span><p class="sa-timing-val">${ip.exit_timing||'—'}</p></div></div><div class="sa-levels-grid"><div class="sa-lvl"><span class="sa-lvl-lbl">Entry</span><span class="sa-lvl-val">${ip.entry_price||'—'}</span></div><div class="sa-lvl"><span class="sa-lvl-lbl">SL</span><span class="sa-lvl-val text-red">${ip.stop_loss||'—'}</span></div><div class="sa-lvl"><span class="sa-lvl-lbl">T1</span><span class="sa-lvl-val text-green">${ip.target_1||'—'}</span></div><div class="sa-lvl"><span class="sa-lvl-lbl">T2</span><span class="sa-lvl-val text-green">${ip.target_2||'—'}</span></div><div class="sa-lvl"><span class="sa-lvl-lbl">T3</span><span class="sa-lvl-val text-green">${ip.target_3||'—'}</span></div><div class="sa-lvl"><span class="sa-lvl-lbl">R:R</span><span class="sa-lvl-val">${ip.risk_reward||'—'}</span></div></div>${ip.qty_for_1L?`<div class="sa-pnl-row"><span>Qty: <strong>${ip.qty_for_1L}</strong></span><span class="text-green">Max: ${ip.max_profit||'—'}</span><span class="text-red">Risk: ${ip.max_loss||'—'}</span></div>`:''}</div><div class="sa-plan ${sp.bias==='BULLISH'?'sa-plan-bull':sp.bias==='BEARISH'?'sa-plan-bear':'sa-plan-neutral'}"><h3 class="sa-plan-title">📈 Swing <span class="sa-plan-bias">${sp.bias||''} · ${sp.holding_period||''}</span></h3><div class="sa-timing-box"><div class="sa-timing"><span class="sa-timing-lbl">📥 ENTRY</span><p class="sa-timing-val">${sp.entry_timing||'—'}</p></div><div class="sa-timing"><span class="sa-timing-lbl">📤 EXIT</span><p class="sa-timing-val">${sp.exit_timing||'—'}</p></div></div><div class="sa-levels-grid"><div class="sa-lvl"><span class="sa-lvl-lbl">Entry</span><span class="sa-lvl-val">${sp.entry_price||'—'}</span></div><div class="sa-lvl"><span class="sa-lvl-lbl">SL</span><span class="sa-lvl-val text-red">${sp.stop_loss||'—'}</span></div><div class="sa-lvl"><span class="sa-lvl-lbl">T1</span><span class="sa-lvl-val text-green">${sp.target_1||'—'}</span></div><div class="sa-lvl"><span class="sa-lvl-lbl">T2</span><span class="sa-lvl-val text-green">${sp.target_2||'—'}</span></div><div class="sa-lvl"><span class="sa-lvl-lbl">R:R</span><span class="sa-lvl-val">${sp.risk_reward||'—'}</span></div></div></div></div><div class="sa-key-levels"><h3 class="sa-section-title">Key Levels</h3><div class="sa-levels-strip">${kl.support_2?`<div class="sa-kl sa-kl-support"><span>S2</span><strong>${kl.support_2}</strong></div>`:''}${kl.support_1?`<div class="sa-kl sa-kl-support"><span>S1</span><strong>${kl.support_1}</strong></div>`:''}${kl.pivot?`<div class="sa-kl sa-kl-pivot"><span>Pivot</span><strong>${kl.pivot}</strong></div>`:''}${kl.vwap?`<div class="sa-kl sa-kl-pivot"><span>VWAP</span><strong>${kl.vwap}</strong></div>`:''}${kl.resistance_1?`<div class="sa-kl sa-kl-resist"><span>R1</span><strong>${kl.resistance_1}</strong></div>`:''}${kl.resistance_2?`<div class="sa-kl sa-kl-resist"><span>R2</span><strong>${kl.resistance_2}</strong></div>`:''}</div></div>${sig.length?`<div class="sa-signals"><h3 class="sa-section-title">Signals</h3><div class="sa-signals-list">${sig.map(s=>`<span class="sa-signal">${s}</span>`).join('')}</div></div>`:''}${data.avoid_if?`<div class="alert alert-warning" style="margin-top:16px"><strong>⚠ Invalidation:</strong> ${data.avoid_if}</div>`:''}</div>`;
     }
 
-    // ──────────────────────────────────────────────
-    // AI Recommendation History
-    // ──────────────────────────────────────────────
-    let aiHistoryLoaded = false;
-    let aiHistoryData = [];
-    let aiLivePrices = {};
+    // ── AI Rec History ──
+    let aiHistoryLoaded=false,aiHistoryData=[],aiLivePrices={};
+    async function loadAiHistory() { document.getElementById('aiHistoryLoading').style.display='flex'; document.getElementById('aiHistoryEmpty').style.display='none'; document.getElementById('aiHistoryEntries').innerHTML=''; try{const[h,p]=await Promise.all([fetch('/api/history'),fetch('/api/history/performance')]);const hj=await h.json(),pj=await p.json();if(hj.status==='success')aiHistoryData=hj.data;if(pj.status==='success')aiLivePrices=pj.data;aiHistoryLoaded=true;renderAiHistory();}catch(e){document.getElementById('aiHistoryEntries').innerHTML=`<p class="no-data">${e.message}</p>`;} document.getElementById('aiHistoryLoading').style.display='none'; }
+    function renderAiHistory() { const c=document.getElementById('aiHistoryEntries'); if(!aiHistoryData.length){document.getElementById('aiHistoryEmpty').style.display='';return;} let tp=0,w=0,l=0,a=0; aiHistoryData.forEach(e=>(e.picks||[]).forEach(p=>{if(p.action!=='BUY')return;tp++;const lp=aiLivePrices[p.ticker],en=parseFloat(String(p.entry_price).replace(/[₹,]/g,'')),t1=parseFloat(String(p.target_1).replace(/[₹,]/g,'')),sl=parseFloat(String(p.stop_loss).replace(/[₹,]/g,''));if(lp&&en){if(t1&&lp>=t1)w++;else if(sl&&lp<=sl)l++;else a++;}})); document.getElementById('aiHistoryStats').innerHTML=`<div class="ai-stats-grid"><div class="ai-stat"><span class="ai-stat-val">${aiHistoryData.length}</span><span class="ai-stat-lbl">Days</span></div><div class="ai-stat"><span class="ai-stat-val">${tp}</span><span class="ai-stat-lbl">Picks</span></div><div class="ai-stat"><span class="ai-stat-val text-green">${w}</span><span class="ai-stat-lbl">Wins</span></div><div class="ai-stat"><span class="ai-stat-val text-red">${l}</span><span class="ai-stat-lbl">Losses</span></div><div class="ai-stat"><span class="ai-stat-val">${a}</span><span class="ai-stat-lbl">Active</span></div><div class="ai-stat"><span class="ai-stat-val ${w>l?'text-green':'text-red'}">${tp>0?((w/tp)*100).toFixed(0):'—'}%</span><span class="ai-stat-lbl">Win%</span></div></div>`; c.innerHTML=aiHistoryData.map(e=>{const bc=(e.overall_bias||'neutral').toLowerCase(),picks=(e.picks||[]).filter(p=>p.action==='BUY'||p.action==='WATCH');return`<div class="ai-rec-entry"><div class="ai-rec-header"><div class="ai-rec-date-block"><span class="ai-rec-date">${formatDate(e.date)}</span><span class="ai-rec-time">${e.timestamp||''}</span></div><div class="ai-rec-meta"><span class="ai-badge ai-bias-${bc}">${e.overall_bias||'—'}</span><span class="ai-rec-timeframe">⏱ ${e.timeframe||'N/A'}</span><span class="ai-rec-capital">₹${(e.capital||0).toLocaleString()}</span></div></div>${e.best_pick_summary?`<div class="ai-rec-summary">💡 ${e.best_pick_summary}</div>`:''}<div class="ai-rec-picks">${picks.length?picks.map(p=>renderARP(p)).join(''):'<p class="no-data">No picks</p>'}</div></div>`;}).join(''); }
+    function renderARP(p) { const t=p.ticker||'—',lp=aiLivePrices[t],en=parseFloat(String(p.entry_price).replace(/[₹,]/g,'')),t1=parseFloat(String(p.target_1).replace(/[₹,]/g,'')),sl=parseFloat(String(p.stop_loss).replace(/[₹,]/g,'')); let o='',oc='',pp=null; if(lp&&en){pp=((lp-en)/en*100).toFixed(1);if(t1&&lp>=t1){o='✅ Hit';oc='outcome-win';}else if(sl&&lp<=sl){o='🛑 SL';oc='outcome-loss';}else if(pp>=0){o='📈 +'+pp+'%';oc='outcome-up';}else{o='📉 '+pp+'%';oc='outcome-down';}} return`<div class="ai-rec-pick ${p.action==='WATCH'?'ai-rec-watch':'ai-rec-buy'}"><div class="ai-rec-pick-top"><strong class="ai-rec-ticker">${t}</strong><span class="ai-action ai-action-${(p.action||'').toLowerCase()}">${p.action||''}</span>${p.conviction?`<span class="tp-conviction tp-cv-${(p.conviction||'').toLowerCase()}">${p.conviction}</span>`:''} ${o?`<span class="ai-rec-outcome ${oc}">${o}</span>`:''}<button class="btn-mini" onclick="showChartModal('${t}')" style="margin-left:4px">📈</button></div><div class="ai-rec-price-row"><div class="ai-rec-price-item"><span class="ai-rec-price-lbl">Entry</span><span class="ai-rec-price-val">${p.entry_price||'—'}</span></div>${lp?`<div class="ai-rec-price-item"><span class="ai-rec-price-lbl">Now</span><span class="ai-rec-price-val">₹${lp.toLocaleString()}</span></div>`:''} ${pp!==null?`<div class="ai-rec-price-item"><span class="ai-rec-price-lbl">P&L</span><span class="ai-rec-price-val ${pp>=0?'text-green':'text-red'}">${pp>=0?'+':''}${pp}%</span></div>`:''}</div>${p.reasoning?`<p class="ai-rec-reason">${p.reasoning}</p>`:''}</div>`; }
 
-    async function loadAiHistory() {
-        document.getElementById('aiHistoryLoading').style.display = 'flex';
-        document.getElementById('aiHistoryEmpty').style.display = 'none';
-        document.getElementById('aiHistoryEntries').innerHTML = '';
-        try {
-            const [hRes, pRes] = await Promise.all([
-                fetch('/api/history'),
-                fetch('/api/history/performance'),
-            ]);
-            const hJson = await hRes.json();
-            const pJson = await pRes.json();
-            if (hJson.status === 'success') aiHistoryData = hJson.data;
-            if (pJson.status === 'success') aiLivePrices = pJson.data;
-            aiHistoryLoaded = true;
-            renderAiHistory();
-        } catch(e) {
-            document.getElementById('aiHistoryEntries').innerHTML =
-                `<p class="no-data">Failed to load AI history: ${e.message}</p>`;
-        }
-        document.getElementById('aiHistoryLoading').style.display = 'none';
-    }
-
-    function renderAiHistory() {
-        const container = document.getElementById('aiHistoryEntries');
-        if (!aiHistoryData.length) {
-            document.getElementById('aiHistoryEmpty').style.display = '';
-            document.getElementById('aiHistoryStats').innerHTML = '';
-            return;
-        }
-
-        // Compute overall stats
-        let totalPicks = 0, wins = 0, losses = 0, active = 0;
-        aiHistoryData.forEach(entry => {
-            (entry.picks || []).forEach(pick => {
-                if (pick.action !== 'BUY') return;
-                totalPicks++;
-                const livePrice = aiLivePrices[pick.ticker];
-                const entryNum = parseFloat(String(pick.entry_price).replace(/[₹,]/g, ''));
-                const t1Num = parseFloat(String(pick.target_1).replace(/[₹,]/g, ''));
-                const slNum = parseFloat(String(pick.stop_loss).replace(/[₹,]/g, ''));
-                if (livePrice && entryNum) {
-                    if (t1Num && livePrice >= t1Num) wins++;
-                    else if (slNum && livePrice <= slNum) losses++;
-                    else active++;
-                }
-            });
-        });
-        const winRate = totalPicks > 0 ? ((wins / totalPicks) * 100).toFixed(0) : '—';
-
-        document.getElementById('aiHistoryStats').innerHTML = `
-            <div class="ai-stats-grid">
-                <div class="ai-stat"><span class="ai-stat-val">${aiHistoryData.length}</span><span class="ai-stat-lbl">Days Tracked</span></div>
-                <div class="ai-stat"><span class="ai-stat-val">${totalPicks}</span><span class="ai-stat-lbl">Total Picks</span></div>
-                <div class="ai-stat"><span class="ai-stat-val text-green">${wins}</span><span class="ai-stat-lbl">Target Hit</span></div>
-                <div class="ai-stat"><span class="ai-stat-val text-red">${losses}</span><span class="ai-stat-lbl">SL Hit</span></div>
-                <div class="ai-stat"><span class="ai-stat-val">${active}</span><span class="ai-stat-lbl">Active</span></div>
-                <div class="ai-stat"><span class="ai-stat-val ${wins > losses ? 'text-green' : 'text-red'}">${winRate}%</span><span class="ai-stat-lbl">Win Rate</span></div>
-            </div>`;
-
-        container.innerHTML = aiHistoryData.map(entry => {
-            const picks = (entry.picks || []).filter(p => p.action === 'BUY' || p.action === 'WATCH');
-            const timeframe = entry.timeframe || 'N/A';
-            const biasClass = (entry.overall_bias || 'neutral').toLowerCase();
-
-            return `
-            <div class="ai-rec-entry">
-                <div class="ai-rec-header">
-                    <div class="ai-rec-date-block">
-                        <span class="ai-rec-date">${formatDate(entry.date)}</span>
-                        <span class="ai-rec-time">${entry.timestamp || ''}</span>
-                    </div>
-                    <div class="ai-rec-meta">
-                        <span class="ai-badge ai-bias-${biasClass}">${entry.overall_bias || '—'}</span>
-                        <span class="ai-rec-timeframe">⏱ ${timeframe}</span>
-                        <span class="ai-rec-capital">₹${(entry.capital || 0).toLocaleString()}</span>
-                    </div>
-                </div>
-                ${entry.best_pick_summary ? `<div class="ai-rec-summary">💡 ${entry.best_pick_summary}</div>` : ''}
-                <div class="ai-rec-picks">
-                    ${picks.length ? picks.map(pick => renderAiRecPick(pick, entry.date, timeframe)).join('') : '<p class="no-data">No picks for this day.</p>'}
-                </div>
-            </div>`;
-        }).join('');
-    }
-
-    function renderAiRecPick(pick, dateStr, timeframe) {
-        const ticker = pick.ticker || '—';
-        const livePrice = aiLivePrices[ticker];
-        const entryNum = parseFloat(String(pick.entry_price).replace(/[₹,]/g, ''));
-        const t1Num = parseFloat(String(pick.target_1).replace(/[₹,]/g, ''));
-        const slNum = parseFloat(String(pick.stop_loss).replace(/[₹,]/g, ''));
-
-        let outcome = '', outcomeClass = '', outcomeIcon = '';
-        let pnlPct = null;
-        if (livePrice && entryNum) {
-            pnlPct = ((livePrice - entryNum) / entryNum * 100).toFixed(1);
-            if (t1Num && livePrice >= t1Num) {
-                outcome = 'Target Hit'; outcomeClass = 'outcome-win'; outcomeIcon = '✅';
-            } else if (slNum && livePrice <= slNum) {
-                outcome = 'SL Hit'; outcomeClass = 'outcome-loss'; outcomeIcon = '🛑';
-            } else if (pnlPct >= 0) {
-                outcome = 'In Profit'; outcomeClass = 'outcome-up'; outcomeIcon = '📈';
-            } else {
-                outcome = 'In Loss'; outcomeClass = 'outcome-down'; outcomeIcon = '📉';
-            }
-        }
-
-        return `
-        <div class="ai-rec-pick ${pick.action === 'WATCH' ? 'ai-rec-watch' : 'ai-rec-buy'}">
-            <div class="ai-rec-pick-top">
-                <strong class="ai-rec-ticker">${ticker}</strong>
-                <span class="ai-action ai-action-${(pick.action||'').toLowerCase()}">${pick.action || ''}</span>
-                ${pick.conviction ? `<span class="tp-conviction tp-cv-${(pick.conviction||'').toLowerCase()}">${pick.conviction}</span>` : ''}
-                ${outcome ? `<span class="ai-rec-outcome ${outcomeClass}">${outcomeIcon} ${outcome}</span>` : ''}
-            </div>
-            <div class="ai-rec-price-row">
-                <div class="ai-rec-price-item">
-                    <span class="ai-rec-price-lbl">AI Suggested Entry</span>
-                    <span class="ai-rec-price-val">${pick.entry_price || '—'}</span>
-                </div>
-                ${livePrice ? `
-                <div class="ai-rec-price-item">
-                    <span class="ai-rec-price-lbl">Current Price</span>
-                    <span class="ai-rec-price-val">₹${livePrice.toLocaleString()}</span>
-                </div>` : ''}
-                ${pnlPct !== null ? `
-                <div class="ai-rec-price-item">
-                    <span class="ai-rec-price-lbl">P&L</span>
-                    <span class="ai-rec-price-val ${pnlPct >= 0 ? 'text-green' : 'text-red'}">${pnlPct >= 0 ? '+' : ''}${pnlPct}%</span>
-                </div>` : ''}
-                ${pick.target_1 ? `
-                <div class="ai-rec-price-item">
-                    <span class="ai-rec-price-lbl">Target</span>
-                    <span class="ai-rec-price-val text-green">${pick.target_1}</span>
-                </div>` : ''}
-                ${pick.stop_loss ? `
-                <div class="ai-rec-price-item">
-                    <span class="ai-rec-price-lbl">Stop Loss</span>
-                    <span class="ai-rec-price-val text-red">${pick.stop_loss}</span>
-                </div>` : ''}
-            </div>
-            ${pick.reasoning ? `<p class="ai-rec-reason">${pick.reasoning}</p>` : ''}
-            ${pick.qty ? `<span class="ai-rec-qty">${pick.qty} shares · ${pick.capital_to_invest || ''}</span>` : ''}
-        </div>`;
-    }
-
+    // Keyboard shortcuts
+    document.addEventListener('keydown', e => {
+        if(e.target.tagName==='INPUT'||e.target.tagName==='SELECT')return;
+        if(e.key==='Escape'){closeModal();closeChartModal();}
+        if(e.key==='s'&&!e.ctrlKey){e.preventDefault();runScan();}
+        if(e.key==='a'&&!e.ctrlKey){e.preventDefault();if(document.getElementById('aiBtn').style.display!=='none')runAI();}
+        if(e.key==='1')switchTab('today'); if(e.key==='2')switchTab('aiHistory'); if(e.key==='3')switchTab('performance');
+        if(e.key==='4')switchTab('watchlists'); if(e.key==='5')switchTab('analyzer'); if(e.key==='6')switchTab('history');
+    });
     </script>
 </body>
 </html>

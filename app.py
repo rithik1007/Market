@@ -1,11 +1,14 @@
 """
 NSE Breakout Trading Dashboard — Flask Application
 AI-powered breakout conviction engine. Hard data only, no noise.
+Enterprise-grade with backtesting, risk management, alerts, and exports.
 """
 
+import io
 import logging
+import threading
 import numpy as np
-from flask import Flask, render_template, jsonify, request
+from flask import Flask, render_template, jsonify, request, Response, make_response
 from flask.json.provider import DefaultJSONProvider
 from screener import screen_stocks
 from data_fetcher import clear_cache, fetch_stock_data
@@ -14,6 +17,19 @@ from ai_analysis import generate_ai_analysis, is_configured as ai_configured, an
 from analyzer import compute_support_resistance
 from nse_stocks import SECTOR_STOCKS, get_stock_sector
 from history import save_ai_result, get_history, get_history_tickers
+from backtester import get_performance_stats
+from risk_manager import analyze_portfolio_risk
+from alerts import (
+    send_breakout_alerts, send_ai_alerts, get_alert_config,
+    is_email_configured, is_telegram_configured,
+)
+from export_report import export_scan_csv, export_ai_csv, export_performance_csv, generate_report_html
+from watchlist import (
+    create_watchlist, get_watchlists, get_watchlist_stocks,
+    add_stock_to_watchlist, remove_stock_from_watchlist,
+    delete_watchlist, check_price_alerts,
+)
+from scheduler import start_scheduler, get_scheduler_status
 
 
 class NumpyJSONProvider(DefaultJSONProvider):
@@ -40,8 +56,10 @@ app.json_provider_class = NumpyJSONProvider
 app.json = NumpyJSONProvider(app)
 msm = MultiSourceManager()
 
-# Cache last scan results for AI analysis endpoint
+# Thread-safe scan cache
+_scan_lock = threading.Lock()
 _last_scan = None
+_last_ai = None  # Cache last AI analysis for exports
 
 
 @app.route("/")
@@ -55,7 +73,9 @@ def scan():
     global _last_scan
     try:
         results = screen_stocks()
-        _last_scan = results
+        with _scan_lock:
+            _last_scan = results
+
         return jsonify({"status": "success", "data": results})
     except Exception as e:
         logging.error(f"Scan error: {e}", exc_info=True)
@@ -69,7 +89,8 @@ def refresh():
     clear_cache()
     try:
         results = screen_stocks()
-        _last_scan = results
+        with _scan_lock:
+            _last_scan = results
         return jsonify({"status": "success", "data": results})
     except Exception as e:
         logging.error(f"Refresh error: {e}", exc_info=True)
@@ -96,6 +117,9 @@ def ai_analysis():
         analysis = generate_ai_analysis(_last_scan, capital=capital, timeframe=timeframe)
         if analysis is None:
             return jsonify({"status": "error", "message": "AI analysis failed"}), 500
+        # Cache for exports
+        global _last_ai
+        _last_ai = analysis
         # Auto-save to history
         try:
             save_ai_result(analysis, capital, {
@@ -385,8 +409,265 @@ def stock_search():
     return jsonify({"status": "success", "data": results[:12]})
 
 
+# ──────────────────────────────────────────────
+# Performance & Backtesting
+# ──────────────────────────────────────────────
+
+@app.route("/api/performance", methods=["GET"])
+def performance():
+    """Get comprehensive performance statistics."""
+    try:
+        stats = get_performance_stats()
+        return jsonify({"status": "success", "data": stats})
+    except Exception as e:
+        logging.error(f"Performance error: {e}", exc_info=True)
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+# ──────────────────────────────────────────────
+# Risk Management
+# ──────────────────────────────────────────────
+
+@app.route("/api/risk-analysis", methods=["POST"])
+def risk_analysis():
+    """Analyze portfolio risk for given trade plans."""
+    try:
+        data = request.get_json(silent=True) or {}
+        trade_plans = data.get("trade_plans", [])
+        capital = data.get("capital", 100000)
+
+        # If no plans provided, use last AI analysis
+        if not trade_plans and _last_ai:
+            trade_plans = _last_ai.get("trade_plans", [])
+
+        analysis = analyze_portfolio_risk(trade_plans, capital=capital)
+        return jsonify({"status": "success", "data": analysis})
+    except Exception as e:
+        logging.error(f"Risk analysis error: {e}", exc_info=True)
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+# ──────────────────────────────────────────────
+# Watchlists
+# ──────────────────────────────────────────────
+
+@app.route("/api/watchlists", methods=["GET"])
+def list_watchlists():
+    """Get all watchlists."""
+    try:
+        return jsonify({"status": "success", "data": get_watchlists()})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route("/api/watchlists", methods=["POST"])
+def create_wl():
+    """Create a new watchlist."""
+    try:
+        data = request.get_json(silent=True) or {}
+        name = data.get("name", "").strip()
+        if not name:
+            return jsonify({"status": "error", "message": "Name required"}), 400
+        wl = create_watchlist(name)
+        return jsonify({"status": "success", "data": wl})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route("/api/watchlists/<int:wl_id>/stocks", methods=["GET"])
+def wl_stocks(wl_id):
+    """Get stocks in a watchlist."""
+    try:
+        stocks = get_watchlist_stocks(wl_id)
+        return jsonify({"status": "success", "data": stocks})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route("/api/watchlists/<int:wl_id>/stocks", methods=["POST"])
+def wl_add_stock(wl_id):
+    """Add a stock to a watchlist."""
+    try:
+        data = request.get_json(silent=True) or {}
+        ticker = data.get("ticker", "").strip().upper()
+        if not ticker:
+            return jsonify({"status": "error", "message": "Ticker required"}), 400
+        ok = add_stock_to_watchlist(
+            wl_id, ticker,
+            notes=data.get("notes", ""),
+            alert_above=data.get("alert_above"),
+            alert_below=data.get("alert_below"),
+        )
+        return jsonify({"status": "success" if ok else "error"})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route("/api/watchlists/<int:wl_id>/stocks/<ticker>", methods=["DELETE"])
+def wl_remove_stock(wl_id, ticker):
+    """Remove a stock from a watchlist."""
+    try:
+        ok = remove_stock_from_watchlist(wl_id, ticker)
+        return jsonify({"status": "success" if ok else "error"})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route("/api/watchlists/<int:wl_id>", methods=["DELETE"])
+def delete_wl(wl_id):
+    """Delete a watchlist."""
+    try:
+        ok = delete_watchlist(wl_id)
+        return jsonify({"status": "success" if ok else "error"})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+# ──────────────────────────────────────────────
+# Export / Reports
+# ──────────────────────────────────────────────
+
+@app.route("/api/export/scan", methods=["GET"])
+def export_scan():
+    """Export scan results as CSV."""
+    if _last_scan is None:
+        return jsonify({"status": "error", "message": "Run a scan first"}), 400
+    try:
+        csv_data = export_scan_csv(_last_scan)
+        return Response(
+            csv_data,
+            mimetype="text/csv",
+            headers={"Content-Disposition": "attachment;filename=breakout_scan.csv"},
+        )
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route("/api/export/ai", methods=["GET"])
+def export_ai():
+    """Export AI recommendations as CSV."""
+    if _last_ai is None:
+        return jsonify({"status": "error", "message": "Run AI analysis first"}), 400
+    try:
+        csv_data = export_ai_csv(_last_ai)
+        return Response(
+            csv_data,
+            mimetype="text/csv",
+            headers={"Content-Disposition": "attachment;filename=ai_recommendations.csv"},
+        )
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route("/api/export/performance", methods=["GET"])
+def export_perf():
+    """Export performance report as CSV."""
+    try:
+        stats = get_performance_stats()
+        csv_data = export_performance_csv(stats)
+        return Response(
+            csv_data,
+            mimetype="text/csv",
+            headers={"Content-Disposition": "attachment;filename=performance_report.csv"},
+        )
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route("/api/export/report", methods=["GET"])
+def export_report():
+    """Generate HTML report for printing/PDF."""
+    if _last_scan is None:
+        return jsonify({"status": "error", "message": "Run a scan first"}), 400
+    try:
+        perf = None
+        try:
+            perf = get_performance_stats()
+        except Exception:
+            pass
+        html = generate_report_html(_last_scan, _last_ai, perf)
+        return Response(html, mimetype="text/html")
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+# ──────────────────────────────────────────────
+# Alerts Configuration
+# ──────────────────────────────────────────────
+
+@app.route("/api/alerts/config", methods=["GET"])
+def alerts_config():
+    """Get alert configuration status."""
+    return jsonify({"status": "success", "data": get_alert_config()})
+
+
+@app.route("/api/alerts/test", methods=["POST"])
+def test_alerts():
+    """Send a test alert."""
+    try:
+        results = {"email": False, "telegram": False}
+        if is_email_configured():
+            from alerts import send_email_alert
+            results["email"] = send_email_alert(
+                "🔔 Test Alert — NSE Breakout Scanner",
+                "<h2>Test Alert</h2><p>Your alert system is working!</p>"
+            )
+        if is_telegram_configured():
+            from alerts import send_telegram_alert
+            results["telegram"] = send_telegram_alert("🔔 Test Alert — NSE Breakout Scanner is connected!")
+        return jsonify({"status": "success", "data": results})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route("/api/alerts/schedule", methods=["GET"])
+def alerts_schedule():
+    """Get scheduler status."""
+    return jsonify({"status": "success", "data": get_scheduler_status()})
+
+
+# ──────────────────────────────────────────────
+# Chart Data
+# ──────────────────────────────────────────────
+
+@app.route("/api/chart-data/<symbol>", methods=["GET"])
+def chart_data(symbol):
+    """Get OHLCV data for TradingView chart."""
+    try:
+        days = request.args.get("days", "180", type=str)
+        period_days = min(365, max(30, int(days)))
+        yf_symbol = symbol.upper() + ".NS"
+        df = fetch_stock_data(yf_symbol, period_days=period_days)
+        if df is None or len(df) == 0:
+            return jsonify({"status": "error", "message": "No data"}), 404
+
+        candles = []
+        for idx, row in df.iterrows():
+            candles.append({
+                "time": int(idx.timestamp()),
+                "open": round(float(row["Open"]), 2),
+                "high": round(float(row["High"]), 2),
+                "low": round(float(row["Low"]), 2),
+                "close": round(float(row["Close"]), 2),
+            })
+
+        volumes = []
+        for idx, row in df.iterrows():
+            volumes.append({
+                "time": int(idx.timestamp()),
+                "value": int(row["Volume"]),
+                "color": "rgba(16,185,129,0.4)" if row["Close"] >= row["Open"] else "rgba(239,68,68,0.4)",
+            })
+
+        return jsonify({"status": "success", "data": {"candles": candles, "volumes": volumes}})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
 if __name__ == "__main__":
     import os
     debug = os.getenv("FLASK_DEBUG", "false").lower() == "true"
     port = int(os.getenv("PORT", 5000))
+    # Start daily email scheduler (9:10 AM IST)
+    start_scheduler()
     app.run(debug=debug, host="0.0.0.0", port=port)

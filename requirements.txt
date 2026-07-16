@@ -1,4 +1,5 @@
 flask>=3.0
+flask-limiter>=3.5
 yfinance>=0.2.30
 pandas>=2.0
 numpy>=1.24
