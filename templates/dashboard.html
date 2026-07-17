@@ -414,7 +414,7 @@
         document.getElementById('aiBias').textContent = '...';
         window.scrollTo({top: 0, behavior: 'smooth'});
         try {
-            const capital = document.getElementById('capitalInput').value || '100000';
+            const capital = document.getElementById('capitalInput').value || '10000';
             const timeframe = document.getElementById('timeframeSelect').value || 'Intraday';
             const r = await fetch('/api/ai-analysis?capital=' + encodeURIComponent(capital) + '&timeframe=' + encodeURIComponent(timeframe));
             const j = await r.json();
@@ -434,10 +434,32 @@
         const pp = ai.portfolio_plan;
         if (pp) document.getElementById('aiPortfolio').innerHTML = `<div class="ai-portfolio-grid"><div class="ai-pf-card"><div class="ai-pf-value">${pp.stocks_to_trade}</div><div class="ai-pf-label">Stocks</div></div><div class="ai-pf-card"><div class="ai-pf-value text-green">${pp.capital_to_deploy}</div><div class="ai-pf-label">Deploy (${pp.deploy_pct}%)</div></div><div class="ai-pf-card"><div class="ai-pf-value text-yellow">${pp.capital_in_cash}</div><div class="ai-pf-label">Cash</div></div><div class="ai-pf-card ai-pf-note"><div class="ai-pf-label">${pp.strategy_note}</div></div></div>`;
         document.getElementById('aiRisk').innerHTML = ai.risk_warning ? `<div class="alert alert-warning">${ai.risk_warning}</div>` : '';
-        const plans = ai.trade_plans || [];
+        const plans = (ai.trade_plans || []).map((p, i) => ({
+            rank: p.rank || i + 1,
+            ticker: p.ticker || '—',
+            action: p.action || 'BUY',
+            conviction: p.conviction || p.confidence || '—',
+            reasoning: p.reasoning || p.rationale || '',
+            entry_price: p.entry_price || p.current_price || '—',
+            stop_loss: p.stop_loss || '—',
+            target_1: p.target_1 || (p.targets && p.targets[0]) || '—',
+            target_2: p.target_2 || (p.targets && p.targets[1]) || '—',
+            holding_period: p.holding_period || '',
+            entry_timing: p.entry_timing || '',
+            exit_timing: p.exit_timing || '',
+            capital_to_invest: p.capital_to_invest || p.investment_amount || '—',
+            capital_pct: p.capital_pct || '',
+            qty: p.qty || '—',
+            expected_profit_t1: p.expected_profit_t1 || '',
+            expected_profit_t2: p.expected_profit_t2 || '',
+            max_loss: p.max_loss || '',
+            risk_reward_note: p.risk_reward_note || '',
+            sector: p.sector || '',
+        }));
         if (plans.length) {
             document.getElementById('aiPlansTitle').style.display = '';
-            document.getElementById('aiPlans').innerHTML = plans.map((p,i) => `<div class="trade-plan tp-${(p.action||'buy').toLowerCase()}"><div class="tp-header"><div class="tp-rank">#${p.rank||i+1}</div><div class="tp-ticker">${p.ticker||'—'}</div><span class="ai-action ai-action-${(p.action||'BUY').toLowerCase()}">${p.action||'BUY'}</span><span class="tp-conviction tp-cv-${(p.conviction||'medium').toLowerCase()}">${p.conviction||'—'}</span><span class="tp-hold">${p.holding_period||''}</span><button class="btn-mini" onclick="showChartModal('${p.ticker}')" style="margin-left:auto;">📈</button></div><p class="tp-reasoning">${p.reasoning||''}</p>${p.entry_timing||p.exit_timing?`<div class="tp-timing">${p.entry_timing?`<div class="tp-timing-box"><span class="tp-timing-lbl">📥 Entry</span><p class="tp-timing-val">${p.entry_timing}</p></div>`:''} ${p.exit_timing?`<div class="tp-timing-box"><span class="tp-timing-lbl">📤 Exit</span><p class="tp-timing-val">${p.exit_timing}</p></div>`:''}</div>`:''}${(p.action||'BUY')==='BUY'?`<div class="tp-levels"><div class="tp-level"><span class="tp-lbl">Invest</span><span class="tp-val tp-invest">${p.capital_to_invest||'—'} ${p.capital_pct?'('+p.capital_pct+'%)':''}</span></div><div class="tp-level"><span class="tp-lbl">Qty</span><span class="tp-val">${p.qty||'—'} shares</span></div><div class="tp-level"><span class="tp-lbl">Entry</span><span class="tp-val">${p.entry_price||'—'}</span></div><div class="tp-level"><span class="tp-lbl">SL</span><span class="tp-val text-red">${p.stop_loss||'—'}</span></div><div class="tp-level"><span class="tp-lbl">T1</span><span class="tp-val text-green">${p.target_1||'—'}</span></div><div class="tp-level"><span class="tp-lbl">T2</span><span class="tp-val text-green">${p.target_2||'—'}</span></div></div>${p.expected_profit_t1?`<div class="tp-pnl"><div class="tp-pnl-item tp-profit"><span>T1 →</span><strong class="text-green">${p.expected_profit_t1}</strong></div><div class="tp-pnl-item tp-profit"><span>T2 →</span><strong class="text-green">${p.expected_profit_t2||'—'}</strong></div><div class="tp-pnl-item tp-loss"><span>SL →</span><strong class="text-red">-${p.max_loss||'—'}</strong></div></div>`:''}<div class="tp-rr-note">${p.risk_reward_note||''}`:''}</div>`).join('');
+            document.getElementById('aiPlans').innerHTML = plans.map(p => `<div class="trade-plan tp-${p.action.toLowerCase()}"><div class="tp-header"><div class="tp-rank">#${p.rank}</div><div class="tp-ticker">${p.ticker}</div><span class="ai-action ai-action-${p.action.toLowerCase()}">${p.action}</span>${p.conviction!=='—'?`<span class="tp-conviction tp-cv-${p.conviction.toLowerCase?p.conviction.toLowerCase():''}">${p.conviction}</span>`:''}<span class="tp-hold">${p.holding_period}</span><button class="btn-mini" onclick="showChartModal('${p.ticker}')" style="margin-left:auto;">📈</button></div>${p.sector?`<span class="pick-sector">${p.sector}</span>`:''}<p class="tp-reasoning">${p.reasoning}</p>${p.entry_timing||p.exit_timing?`<div class="tp-timing">${p.entry_timing?`<div class="tp-timing-box"><span class="tp-timing-lbl">📥 Entry</span><p class="tp-timing-val">${p.entry_timing}</p></div>`:''} ${p.exit_timing?`<div class="tp-timing-box"><span class="tp-timing-lbl">📤 Exit</span><p class="tp-timing-val">${p.exit_timing}</p></div>`:''}</div>`:''}<div class="tp-levels"><div class="tp-level"><span class="tp-lbl">Invest</span><span class="tp-val tp-invest">${p.capital_to_invest} ${p.capital_pct?'('+p.capital_pct+'%)':''}</span></div><div class="tp-level"><span class="tp-lbl">Qty</span><span class="tp-val">${p.qty} shares</span></div><div class="tp-level"><span class="tp-lbl">Entry</span><span class="tp-val">${p.entry_price}</span></div><div class="tp-level"><span class="tp-lbl">SL</span><span class="tp-val text-red">${p.stop_loss}</span></div><div class="tp-level"><span class="tp-lbl">T1</span><span class="tp-val text-green">${p.target_1}</span></div><div class="tp-level"><span class="tp-lbl">T2</span><span class="tp-val text-green">${p.target_2}</span></div></div>${p.expected_profit_t1?`<div class="tp-pnl"><div class="tp-pnl-item tp-profit"><span>T1 →</span><strong class="text-green">${p.expected_profit_t1}</strong></div><div class="tp-pnl-item tp-profit"><span>T2 →</span><strong class="text-green">${p.expected_profit_t2}</strong></div><div class="tp-pnl-item tp-loss"><span>SL →</span><strong class="text-red">-${p.max_loss}</strong></div></div>`:''}<div class="tp-rr-note">${p.risk_reward_note}</div></div>`).join('');
+        }`:''}</div>`).join('');
         }
         const wl = ai.watchlist || [];
         if (wl.length) {
