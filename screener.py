@@ -293,6 +293,10 @@ def compute_sector_strength(stock_data):
 
         pct_5d = ((df["Close"].iloc[-1] - df["Close"].iloc[-5]) / df["Close"].iloc[-5]) * 100
 
+        # Skip if NaN
+        if pct_5d != pct_5d:  # NaN check
+            continue
+
         if sector not in sector_perf:
             sector_perf[sector] = []
         sector_perf[sector].append(pct_5d)

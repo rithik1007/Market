@@ -32,8 +32,39 @@ from watchlist import (
 from scheduler import start_scheduler, get_scheduler_status
 
 
+import math
+import json as _json
+
+def _sanitize_for_json(obj):
+    """Recursively replace NaN/Inf with None for JSON serialization."""
+    if isinstance(obj, float):
+        if math.isnan(obj) or math.isinf(obj):
+            return None
+        return obj
+    if isinstance(obj, (np.floating,)):
+        v = float(obj)
+        if math.isnan(v) or math.isinf(v):
+            return None
+        return v
+    if isinstance(obj, (np.bool_,)):
+        return bool(obj)
+    if isinstance(obj, (np.integer,)):
+        return int(obj)
+    if isinstance(obj, np.ndarray):
+        return _sanitize_for_json(obj.tolist())
+    if isinstance(obj, dict):
+        return {k: _sanitize_for_json(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return type(obj)(_sanitize_for_json(v) for v in obj)
+    return obj
+
+
 class NumpyJSONProvider(DefaultJSONProvider):
-    """Handle numpy types that stdlib json can't serialize."""
+    """Handle numpy types and NaN/Inf that stdlib json can't serialize."""
+
+    def dumps(self, obj, **kwargs):
+        return _json.dumps(_sanitize_for_json(obj), **kwargs)
+
     @staticmethod
     def default(o):
         if isinstance(o, (np.bool_,)):
@@ -41,7 +72,8 @@ class NumpyJSONProvider(DefaultJSONProvider):
         if isinstance(o, (np.integer,)):
             return int(o)
         if isinstance(o, (np.floating,)):
-            return float(o)
+            v = float(o)
+            return None if math.isnan(v) or math.isinf(v) else v
         if isinstance(o, np.ndarray):
             return o.tolist()
         return DefaultJSONProvider.default(o)
