@@ -1,5 +1,6 @@
 """
-AI Analysis Module — Azure OpenAI powered market brief & stock reasoning.
+AI Analysis Module — LLM-powered market brief & stock reasoning.
+Supports GitHub Models (free) and Azure OpenAI.
 Takes hard data from the screener and produces actionable AI insights.
 """
 
@@ -8,33 +9,44 @@ import json
 import logging
 from typing import Optional
 from dotenv import load_dotenv
-from openai import AzureOpenAI
+from openai import OpenAI, AzureOpenAI
 
 load_dotenv()
 logger = logging.getLogger(__name__)
 
-# Azure OpenAI client (lazy init)
+# LLM client (lazy init)
 _client = None
 
 
 def _get_client():
     global _client
     if _client is None:
+        # Priority 1: GitHub Models (free)
+        github_token = os.getenv("GITHUB_TOKEN")
+        if github_token:
+            _client = OpenAI(
+                base_url="https://models.inference.ai.azure.com",
+                api_key=github_token,
+            )
+            return _client
+
+        # Priority 2: Azure OpenAI
         endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
         api_key = os.getenv("AZURE_OPENAI_API_KEY")
         api_version = os.getenv("AZURE_OPENAI_API_VERSION", "2025-01-01-preview")
-        if not endpoint or not api_key:
-            return None
-        _client = AzureOpenAI(
-            azure_endpoint=endpoint,
-            api_key=api_key,
-            api_version=api_version,
-        )
+        if endpoint and api_key:
+            _client = AzureOpenAI(
+                azure_endpoint=endpoint,
+                api_key=api_key,
+                api_version=api_version,
+            )
+            return _client
+
     return _client
 
 
-def _get_deployment():
-    return os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-5-1-chat-2025-11-13")
+def _get_model():
+    return os.getenv("LLM_MODEL", os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-4o-mini"))
 
 
 def _get_temperature():
@@ -45,24 +57,24 @@ def _get_temperature():
 
 
 def _call_llm(system_prompt: str, user_prompt: str, max_tokens: int = 1500) -> Optional[str]:
-    """Call Azure OpenAI and return the text response."""
+    """Call LLM (GitHub Models or Azure OpenAI) and return the text response."""
     client = _get_client()
     if client is None:
-        logger.warning("Azure OpenAI not configured — skipping AI analysis")
+        logger.warning("LLM not configured — skipping AI analysis")
         return None
     try:
         resp = client.chat.completions.create(
-            model=_get_deployment(),
+            model=_get_model(),
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
             ],
             temperature=_get_temperature(),
-            max_completion_tokens=max_tokens,
+            max_tokens=max_tokens,
         )
         return resp.choices[0].message.content.strip()
     except Exception as e:
-        logger.error(f"Azure OpenAI call failed: {e}")
+        logger.error(f"LLM call failed: {e}")
         return None
 
 
@@ -314,8 +326,8 @@ def _parse_ai_response(raw: str) -> Optional[dict]:
 
 
 def is_configured() -> bool:
-    """Check if Azure OpenAI credentials are present."""
-    return bool(os.getenv("AZURE_OPENAI_ENDPOINT") and os.getenv("AZURE_OPENAI_API_KEY"))
+    """Check if LLM credentials are present (GitHub Models or Azure OpenAI)."""
+    return bool(os.getenv("GITHUB_TOKEN") or (os.getenv("AZURE_OPENAI_ENDPOINT") and os.getenv("AZURE_OPENAI_API_KEY")))
 
 
 # ──────────────────────────────────────────────
