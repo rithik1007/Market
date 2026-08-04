@@ -70,7 +70,7 @@ def _call_llm(system_prompt: str, user_prompt: str, max_tokens: int = 1500) -> O
                 {"role": "user", "content": user_prompt},
             ],
             temperature=_get_temperature(),
-            max_tokens=max_tokens,
+            max_completion_tokens=max_tokens,
         )
         return resp.choices[0].message.content.strip()
     except Exception as e:
