@@ -148,6 +148,9 @@ def generate_ai_analysis(scan_results: dict, capital: int = 100000, timeframe: s
         [s for s in universe if s["close"] <= capital],
         key=lambda s: (-s["rsi"] if s["rsi"] < 70 else 0, -s["volume_ratio"]),
     )
+    # If no affordable stocks, include cheapest stocks so AI has data to work with
+    if not affordable and universe:
+        affordable = sorted(universe, key=lambda s: s["close"])[:15]
     # Send top 25 affordable stocks (sorted by technical strength) to keep tokens low
     affordable_for_ai = affordable[:25]
 
@@ -245,11 +248,18 @@ Scan Data:
 def _build_no_breakout_prompt(payload: dict, capital: int = 100000, timeframe: str = "Intraday") -> str:
     """Prompt when NO breakouts found — bearish/flat market."""
     cap_fmt = f"₹{capital:,}"
-    return f"""NSE scan found 0 breakouts today. But the trader has {cap_fmt} and wants to know WHAT to buy.
+    return f"""NSE scan found 0 breakouts today. But the trader has {cap_fmt} and wants to know WHAT to do.
 TIMEFRAME: The trader wants recommendations for the **{timeframe}** timeframe.
 Tailor ALL recommendations (entry timing, holding period, targets, stop losses) to this timeframe.
 
-You have "affordable_stocks" — ALL scanned stocks priced ≤ {cap_fmt}/share with their RSI, volume ratio, trend, and MA positions. Use this data to find the BEST stocks within budget.
+You have "affordable_stocks" — ALL scanned stocks priced ≤ {cap_fmt}/share with their RSI, volume ratio, trend, and MA positions.
+You also have "sector_analysis" showing which sectors are strong/weak, and "index_sentiment" with NIFTY/BANK NIFTY levels.
+
+IMPORTANT: Even if affordable_stocks is empty or has 0 entries:
+- Still provide a comprehensive market_brief explaining sector rotation, index levels, and market conditions
+- Still fill the watchlist with 3-5 stocks from affordable_stocks OR from top_picks (mention if they're above budget)
+- Give the trader a CLEAR action plan — what price level to watch, what event to wait for, or suggest they increase budget
+- Reference specific numbers from index_sentiment and sector_analysis
 
 Even in a bearish market, identify 3-5 stocks from affordable_stocks that:
 - Have RSI between 30-50 (oversold bounce candidates)
@@ -257,24 +267,26 @@ Even in a bearish market, identify 3-5 stocks from affordable_stocks that:
 - Or are above 50DMA/200DMA (relative strength)
 - Or are in a strong sector (Pharma, FMCG, Telecom)
 
+If affordable_stocks is empty, pick the CHEAPEST stocks from the overall data and suggest them as watchlist items with trigger prices.
+
 Return this JSON:
 {{
-  "market_brief": "3-5 sentences on WHY no breakouts — be specific about index levels.",
+  "market_brief": "4-6 sentences. Be SPECIFIC: mention exact NIFTY level, which sectors are green/red, what's driving the market today. Example: 'NIFTY 50 at 24,850 (+0.27%) is holding above 50DMA but failing at 20DMA resistance. BANK NIFTY flat signals institutional indecision...'",
   "overall_bias": "BEARISH" or "NEUTRAL",
   "portfolio_plan": {{
     "stocks_to_trade": 0,
     "capital_to_deploy": "₹0",
     "capital_in_cash": "{cap_fmt}",
     "deploy_pct": 0,
-    "strategy_note": "Clear instruction on what to do with {cap_fmt}"
+    "strategy_note": "Clear instruction — e.g. 'Wait for NIFTY to close above 25,000 with volume before deploying. Meanwhile, track these 3 bounce candidates.'"
   }},
   "trade_plans": [],
   "watchlist": [
     {{
-      "ticker": "STOCK from affordable_stocks",
+      "ticker": "STOCK",
       "sector": "sector",
       "current_price": "₹xxx",
-      "why_watch": "1-2 sentences — reference actual RSI, volume, trend data from the scan",
+      "why_watch": "2-3 sentences with SPECIFIC data — RSI value, volume ratio, MA position, sector context",
       "trigger_level": "₹xxx — exact price to enter",
       "entry_timing": "When to enter — e.g. 'Buy if 15m candle closes above trigger' or 'Enter on open if gaps up'",
       "exit_timing": "When to exit — e.g. 'Book at ₹xxx (+5%), SL at ₹xxx'",
@@ -282,9 +294,10 @@ Return this JSON:
       "investment_amount": "₹xxx"
     }}
   ],
-  "re_entry_conditions": "2-3 sentences — specific conditions to deploy capital",
-  "risk_warning": "1 sentence risk",
-  "best_pick_summary": "Name the #1 affordable stock to watch and exact entry condition"
+  "sector_insight": "2-3 sentences on which sectors to focus on and why — reference sector_analysis data",
+  "re_entry_conditions": "3-4 sentences — SPECIFIC conditions: 'Deploy 50% if NIFTY reclaims 25,000 on closing basis with BANK NIFTY confirming. Deploy remaining 50% on any stock from watchlist breaking trigger with volume > 1.5x average.'",
+  "risk_warning": "1 sentence key risk",
+  "best_pick_summary": "Name the #1 stock to watch and exact entry condition — even if it's above budget, say 'If you can increase budget to ₹X, watch STOCK for entry above ₹Y'"
 }}
 
 Scan Data:

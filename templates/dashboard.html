@@ -92,6 +92,7 @@
             <div class="ai-portfolio" id="aiPortfolio"></div>
 
             <div class="ai-risk" id="aiRisk"></div>
+            <div class="ai-sector-insight" id="aiSectorInsight"></div>
             <div class="ai-reentry" id="aiReentry"></div>
             <h3 class="ai-plans-title" id="aiPlansTitle" style="display:none;">Trade Plans — Ranked by Priority</h3>
             <div class="ai-plans" id="aiPlans"></div>
@@ -409,7 +410,7 @@
         btn.disabled = true; btn.innerHTML = '<span class="btn-icon">⏳</span> Analyzing...';
         const sec = document.getElementById('aiSection'); sec.style.display = '';
         document.getElementById('aiBrief').innerHTML = '<p class="ai-loading">🤖 AI is analyzing — generating trade plans...</p>';
-        ['aiBest','aiPortfolio','aiRisk','aiPlans','aiReentry','aiWatchlist'].forEach(id => document.getElementById(id).innerHTML = '');
+        ['aiBest','aiPortfolio','aiRisk','aiSectorInsight','aiPlans','aiReentry','aiWatchlist'].forEach(id => document.getElementById(id).innerHTML = '');
         ['aiPlansTitle','aiWatchTitle'].forEach(id => document.getElementById(id).style.display = 'none');
         document.getElementById('aiBias').textContent = '...';
         window.scrollTo({top: 0, behavior: 'smooth'});
@@ -466,6 +467,7 @@
             document.getElementById('aiWatchlist').innerHTML = wl.map(w => `<div class="watch-card"><div class="watch-header"><strong>${w.ticker}</strong><span class="watch-sector">${w.sector||''}</span>${w.current_price?`<span class="watch-price">${w.current_price}</span>`:''} ${w.trigger_level?`<span class="watch-trigger">Trigger: ${w.trigger_level}</span>`:''}<button class="btn-mini" onclick="showChartModal('${w.ticker}')" style="margin-left:auto;">📈</button></div><p class="watch-why">${w.why_watch}</p>${w.entry_timing||w.exit_timing?`<div class="tp-timing" style="margin-top:8px;">${w.entry_timing?`<div class="tp-timing-box"><span class="tp-timing-lbl">📥 Entry</span><p class="tp-timing-val">${w.entry_timing}</p></div>`:''} ${w.exit_timing?`<div class="tp-timing-box"><span class="tp-timing-lbl">📤 Exit</span><p class="tp-timing-val">${w.exit_timing}</p></div>`:''}</div>`:''} ${w.qty_at_trigger?`<div class="watch-invest">Buy ${w.qty_at_trigger} shares → ${w.investment_amount||''}</div>`:''}</div>`).join('');
         }
         if (ai.re_entry_conditions) document.getElementById('aiReentry').innerHTML = `<div class="ai-reentry-box">🔄 <strong>Re-enter:</strong> ${ai.re_entry_conditions}</div>`;
+        if (ai.sector_insight) document.getElementById('aiSectorInsight').innerHTML = `<div class="ai-reentry-box" style="border-left-color:#6366f1;">📊 <strong>Sector Focus:</strong> ${ai.sector_insight}</div>`;
     }
 
     // ── Risk Analysis ──
